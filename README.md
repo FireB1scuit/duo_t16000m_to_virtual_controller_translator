@@ -10,3 +10,6 @@
 - [ ] map throttle button (slider left = mouse sensitivity, slider right = volume)
 - [ ] map extra button on base
 - [ ] map horizontal X rotation for X joystick acceleration
+
+
+![Reference image](reference.png)
