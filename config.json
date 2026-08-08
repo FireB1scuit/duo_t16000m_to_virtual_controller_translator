@@ -1,0 +1,33 @@
+{
+    "stick_x_axis": 0,
+    "stick_y_axis": 1,
+    "invert_y_left": true,
+    "invert_y_right": false,
+    "trigger_button": 0,
+    "stick_deadzone": 0.05,
+    "poll_hz": 125,
+    "left_buttons": {
+        "1": "B",
+        "2": "Y",
+        "3": "LEFT_SHOULDER"
+    },
+    "right_buttons": {
+        "1": "A",
+        "2": "RIGHT_SHOULDER",
+        "3": "X"
+    },
+    "left_hat": {
+        "0,1": "DPAD_UP",
+        "0,-1": "DPAD_DOWN",
+        "1,0": "DPAD_RIGHT",
+        "-1,0": "DPAD_LEFT",
+        "-1,-1": "LEFT_THUMB"
+    },
+    "right_hat": {
+        "0,1": "Y",
+        "0,-1": "A",
+        "1,0": "B",
+        "-1,0": "X",
+        "-1,-1": "RIGHT_THUMB"
+    }
+}
