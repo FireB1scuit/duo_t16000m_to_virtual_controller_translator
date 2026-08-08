@@ -9,12 +9,34 @@
     "left_buttons": {
         "1": "B",
         "2": "Y",
-        "3": "LEFT_SHOULDER"
+        "3": "LEFT_SHOULDER",
+        "5": "Y",
+        "6": "GUIDE",
+        "7": "X",
+        "8": "A",
+        "9": "B",
+        "10": "BACK",
+        "11": "DPAD_UP",
+        "12": "START",
+        "13": "DPAD_RIGHT",
+        "14": "DPAD_DOWN",
+        "15": "DPAD_LEFT"
     },
     "right_buttons": {
         "1": "A",
         "2": "RIGHT_SHOULDER",
-        "3": "X"
+        "3": "X",
+        "5": "Y",
+        "6": "GUIDE",
+        "7": "X",
+        "8": "A",
+        "9": "B",
+        "10": "BACK",
+        "11": "DPAD_UP",
+        "12": "START",
+        "13": "DPAD_RIGHT",
+        "14": "DPAD_DOWN",
+        "15": "DPAD_LEFT"
     },
     "left_hat": {
         "0,1": "DPAD_UP",
