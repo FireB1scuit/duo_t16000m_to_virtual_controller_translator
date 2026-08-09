@@ -11,5 +11,36 @@
 - [ ] map extra button on base
 - [ ] map horizontal X rotation for X joystick acceleration
 
+## Button mapping
+
+Mapping is defined in [config.json](config.json); `BUTTON_NAME_MAP` in [main.py](main.py) lists the supported target names.
+
+![Button mapping diagram](button_mapping.svg)
+
+| T.16000M input | Left stick → | Right stick → |
+| --- | --- | --- |
+| Trigger (button 0) | LT | RT |
+| Button 1 | B | A |
+| Button 2 | Y | RB |
+| Button 3 | LB | X |
+| Hat up | D-Pad up | Y |
+| Hat down | D-Pad down | A |
+| Hat left | D-Pad left | X |
+| Hat right | D-Pad right | B |
+| Hat diagonal (↖) | Left stick click (L3) | Right stick click (R3) |
+| Button 5 | Y | Y |
+| Button 6 | Guide (Xbox button) | Guide (Xbox button) |
+| Button 7 | X | X |
+| Button 8 | A | A |
+| Button 9 | B | B |
+| Button 10 | Back | Back |
+| Button 11 | D-Pad up | D-Pad up |
+| Button 12 | Start | Start |
+| Button 13 | D-Pad right | D-Pad right |
+| Button 14 | D-Pad down | D-Pad down |
+| Button 15 | D-Pad left | D-Pad left |
+| Button 4, 16–19 | unmapped | unmapped |
+
+Button 4 (screenshot/share) has no Xbox 360 equivalent — `VX360Gamepad` emulates a 360 pad, which predates that button.
 
 ![Reference image](reference.png)

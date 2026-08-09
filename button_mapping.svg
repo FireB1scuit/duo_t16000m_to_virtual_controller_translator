@@ -1,0 +1,173 @@
+<svg viewBox="0 0 1160 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+<title id="title">T.16000M to Xbox 360 controller button mapping</title>
+<desc id="desc">Diagram showing how the left and right Thrustmaster T.16000M joystick buttons map to virtual Xbox 360 controller inputs.</desc>
+<style>
+  svg {
+    --bg: #ffffff;
+    --box-fill: #ffffff;
+    --line: #d0d7de;
+    --text: #1f2328;
+    --sub: #57606a;
+    --accent: #0969da;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --bg: #0d1117;
+      --box-fill: #161b22;
+      --line: #30363d;
+      --text: #e6edf3;
+      --sub: #8b949e;
+      --accent: #58a6ff;
+    }
+  }
+  text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .bg { fill: var(--bg); }
+  .box { fill: var(--box-fill); stroke: var(--line); stroke-width: 1.5; }
+  .title { fill: var(--text); font-size: 22px; font-weight: 700; }
+  .colhead { fill: var(--accent); font-size: 18px; font-weight: 700; letter-spacing: 1px; }
+  .section { fill: var(--sub); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .boxtop { fill: var(--text); font-size: 13px; }
+  .boxfn { fill: var(--accent); font-size: 13px; font-weight: 700; }
+  .note { fill: var(--sub); font-size: 12px; }
+  .divider { stroke: var(--line); stroke-width: 1.5; }
+</style>
+<rect class="bg" x="0" y="0" width="1160" height="620"/>
+<text class="title" x="580" y="35" text-anchor="middle">T.16000M → Xbox 360 Controller Button Mapping</text>
+
+<text class="colhead" x="300" y="75" text-anchor="middle">LEFT STICK</text>
+<text class="colhead" x="860" y="75" text-anchor="middle">RIGHT STICK</text>
+<line class="divider" x1="580" y1="60" x2="580" y2="500"/>
+
+<text class="section" x="40" y="105">Trigger &amp; Stick Buttons (0–3)</text>
+<text class="section" x="600" y="105">Trigger &amp; Stick Buttons (0–3)</text>
+<rect class="box" x="40" y="115" width="118" height="55" rx="8"/>
+<text class="boxtop" x="99.0" y="137" text-anchor="middle">Trigger</text>
+<text class="boxfn" x="99.0" y="156" text-anchor="middle">→ LT</text>
+<rect class="box" x="171" y="115" width="118" height="55" rx="8"/>
+<text class="boxtop" x="230.0" y="137" text-anchor="middle">Button 1</text>
+<text class="boxfn" x="230.0" y="156" text-anchor="middle">→ B</text>
+<rect class="box" x="302" y="115" width="118" height="55" rx="8"/>
+<text class="boxtop" x="361.0" y="137" text-anchor="middle">Button 2</text>
+<text class="boxfn" x="361.0" y="156" text-anchor="middle">→ Y</text>
+<rect class="box" x="433" y="115" width="118" height="55" rx="8"/>
+<text class="boxtop" x="492.0" y="137" text-anchor="middle">Button 3</text>
+<text class="boxfn" x="492.0" y="156" text-anchor="middle">→ LB</text>
+<rect class="box" x="600" y="115" width="118" height="55" rx="8"/>
+<text class="boxtop" x="659.0" y="137" text-anchor="middle">Trigger</text>
+<text class="boxfn" x="659.0" y="156" text-anchor="middle">→ RT</text>
+<rect class="box" x="731" y="115" width="118" height="55" rx="8"/>
+<text class="boxtop" x="790.0" y="137" text-anchor="middle">Button 1</text>
+<text class="boxfn" x="790.0" y="156" text-anchor="middle">→ A</text>
+<rect class="box" x="862" y="115" width="118" height="55" rx="8"/>
+<text class="boxtop" x="921.0" y="137" text-anchor="middle">Button 2</text>
+<text class="boxfn" x="921.0" y="156" text-anchor="middle">→ RB</text>
+<rect class="box" x="993" y="115" width="118" height="55" rx="8"/>
+<text class="boxtop" x="1052.0" y="137" text-anchor="middle">Button 3</text>
+<text class="boxfn" x="1052.0" y="156" text-anchor="middle">→ X</text>
+
+<text class="section" x="40" y="195">Hat / POV Switch</text>
+<text class="section" x="600" y="195">Hat / POV Switch</text>
+<rect class="box" x="40" y="205" width="94" height="55" rx="8"/>
+<text class="boxtop" x="87.0" y="227" text-anchor="middle">Hat Up</text>
+<text class="boxfn" x="87.0" y="246" text-anchor="middle">→ D-Up</text>
+<rect class="box" x="145" y="205" width="94" height="55" rx="8"/>
+<text class="boxtop" x="192.0" y="227" text-anchor="middle">Hat Down</text>
+<text class="boxfn" x="192.0" y="246" text-anchor="middle">→ D-Down</text>
+<rect class="box" x="250" y="205" width="94" height="55" rx="8"/>
+<text class="boxtop" x="297.0" y="227" text-anchor="middle">Hat Left</text>
+<text class="boxfn" x="297.0" y="246" text-anchor="middle">→ D-Left</text>
+<rect class="box" x="355" y="205" width="94" height="55" rx="8"/>
+<text class="boxtop" x="402.0" y="227" text-anchor="middle">Hat Right</text>
+<text class="boxfn" x="402.0" y="246" text-anchor="middle">→ D-Right</text>
+<rect class="box" x="460" y="205" width="94" height="55" rx="8"/>
+<text class="boxtop" x="507.0" y="227" text-anchor="middle">Hat ↖</text>
+<text class="boxfn" x="507.0" y="246" text-anchor="middle">→ L3</text>
+<rect class="box" x="600" y="205" width="94" height="55" rx="8"/>
+<text class="boxtop" x="647.0" y="227" text-anchor="middle">Hat Up</text>
+<text class="boxfn" x="647.0" y="246" text-anchor="middle">→ Y</text>
+<rect class="box" x="705" y="205" width="94" height="55" rx="8"/>
+<text class="boxtop" x="752.0" y="227" text-anchor="middle">Hat Down</text>
+<text class="boxfn" x="752.0" y="246" text-anchor="middle">→ A</text>
+<rect class="box" x="810" y="205" width="94" height="55" rx="8"/>
+<text class="boxtop" x="857.0" y="227" text-anchor="middle">Hat Left</text>
+<text class="boxfn" x="857.0" y="246" text-anchor="middle">→ X</text>
+<rect class="box" x="915" y="205" width="94" height="55" rx="8"/>
+<text class="boxtop" x="962.0" y="227" text-anchor="middle">Hat Right</text>
+<text class="boxfn" x="962.0" y="246" text-anchor="middle">→ B</text>
+<rect class="box" x="1020" y="205" width="94" height="55" rx="8"/>
+<text class="boxtop" x="1067.0" y="227" text-anchor="middle">Hat ↖</text>
+<text class="boxfn" x="1067.0" y="246" text-anchor="middle">→ R3</text>
+
+<text class="section" x="40" y="285">Base Buttons 5–15 (same mapping both sides)</text>
+<text class="section" x="600" y="285">Base Buttons 5–15 (same mapping both sides)</text>
+<rect class="box" x="40" y="295" width="118" height="55" rx="8"/>
+<text class="boxtop" x="99.0" y="317" text-anchor="middle">Button 5</text>
+<text class="boxfn" x="99.0" y="336" text-anchor="middle">→ Y</text>
+<rect class="box" x="171" y="295" width="118" height="55" rx="8"/>
+<text class="boxtop" x="230.0" y="317" text-anchor="middle">Button 6</text>
+<text class="boxfn" x="230.0" y="336" text-anchor="middle">→ Guide</text>
+<rect class="box" x="302" y="295" width="118" height="55" rx="8"/>
+<text class="boxtop" x="361.0" y="317" text-anchor="middle">Button 7</text>
+<text class="boxfn" x="361.0" y="336" text-anchor="middle">→ X</text>
+<rect class="box" x="433" y="295" width="118" height="55" rx="8"/>
+<text class="boxtop" x="492.0" y="317" text-anchor="middle">Button 8</text>
+<text class="boxfn" x="492.0" y="336" text-anchor="middle">→ A</text>
+<rect class="box" x="40" y="365" width="118" height="55" rx="8"/>
+<text class="boxtop" x="99.0" y="387" text-anchor="middle">Button 9</text>
+<text class="boxfn" x="99.0" y="406" text-anchor="middle">→ B</text>
+<rect class="box" x="171" y="365" width="118" height="55" rx="8"/>
+<text class="boxtop" x="230.0" y="387" text-anchor="middle">Button 10</text>
+<text class="boxfn" x="230.0" y="406" text-anchor="middle">→ Back</text>
+<rect class="box" x="302" y="365" width="118" height="55" rx="8"/>
+<text class="boxtop" x="361.0" y="387" text-anchor="middle">Button 11</text>
+<text class="boxfn" x="361.0" y="406" text-anchor="middle">→ D-Up</text>
+<rect class="box" x="433" y="365" width="118" height="55" rx="8"/>
+<text class="boxtop" x="492.0" y="387" text-anchor="middle">Button 12</text>
+<text class="boxfn" x="492.0" y="406" text-anchor="middle">→ Start</text>
+<rect class="box" x="40" y="435" width="118" height="55" rx="8"/>
+<text class="boxtop" x="99.0" y="457" text-anchor="middle">Button 13</text>
+<text class="boxfn" x="99.0" y="476" text-anchor="middle">→ D-Right</text>
+<rect class="box" x="171" y="435" width="118" height="55" rx="8"/>
+<text class="boxtop" x="230.0" y="457" text-anchor="middle">Button 14</text>
+<text class="boxfn" x="230.0" y="476" text-anchor="middle">→ D-Down</text>
+<rect class="box" x="302" y="435" width="118" height="55" rx="8"/>
+<text class="boxtop" x="361.0" y="457" text-anchor="middle">Button 15</text>
+<text class="boxfn" x="361.0" y="476" text-anchor="middle">→ D-Left</text>
+<rect class="box" x="600" y="295" width="118" height="55" rx="8"/>
+<text class="boxtop" x="659.0" y="317" text-anchor="middle">Button 5</text>
+<text class="boxfn" x="659.0" y="336" text-anchor="middle">→ Y</text>
+<rect class="box" x="731" y="295" width="118" height="55" rx="8"/>
+<text class="boxtop" x="790.0" y="317" text-anchor="middle">Button 6</text>
+<text class="boxfn" x="790.0" y="336" text-anchor="middle">→ Guide</text>
+<rect class="box" x="862" y="295" width="118" height="55" rx="8"/>
+<text class="boxtop" x="921.0" y="317" text-anchor="middle">Button 7</text>
+<text class="boxfn" x="921.0" y="336" text-anchor="middle">→ X</text>
+<rect class="box" x="993" y="295" width="118" height="55" rx="8"/>
+<text class="boxtop" x="1052.0" y="317" text-anchor="middle">Button 8</text>
+<text class="boxfn" x="1052.0" y="336" text-anchor="middle">→ A</text>
+<rect class="box" x="600" y="365" width="118" height="55" rx="8"/>
+<text class="boxtop" x="659.0" y="387" text-anchor="middle">Button 9</text>
+<text class="boxfn" x="659.0" y="406" text-anchor="middle">→ B</text>
+<rect class="box" x="731" y="365" width="118" height="55" rx="8"/>
+<text class="boxtop" x="790.0" y="387" text-anchor="middle">Button 10</text>
+<text class="boxfn" x="790.0" y="406" text-anchor="middle">→ Back</text>
+<rect class="box" x="862" y="365" width="118" height="55" rx="8"/>
+<text class="boxtop" x="921.0" y="387" text-anchor="middle">Button 11</text>
+<text class="boxfn" x="921.0" y="406" text-anchor="middle">→ D-Up</text>
+<rect class="box" x="993" y="365" width="118" height="55" rx="8"/>
+<text class="boxtop" x="1052.0" y="387" text-anchor="middle">Button 12</text>
+<text class="boxfn" x="1052.0" y="406" text-anchor="middle">→ Start</text>
+<rect class="box" x="600" y="435" width="118" height="55" rx="8"/>
+<text class="boxtop" x="659.0" y="457" text-anchor="middle">Button 13</text>
+<text class="boxfn" x="659.0" y="476" text-anchor="middle">→ D-Right</text>
+<rect class="box" x="731" y="435" width="118" height="55" rx="8"/>
+<text class="boxtop" x="790.0" y="457" text-anchor="middle">Button 14</text>
+<text class="boxfn" x="790.0" y="476" text-anchor="middle">→ D-Down</text>
+<rect class="box" x="862" y="435" width="118" height="55" rx="8"/>
+<text class="boxtop" x="921.0" y="457" text-anchor="middle">Button 15</text>
+<text class="boxfn" x="921.0" y="476" text-anchor="middle">→ D-Left</text>
+
+<text class="note" x="580" y="510" text-anchor="middle">Button 4 and buttons 16–19 are unmapped (no Xbox 360 equivalent for screenshot/share).</text>
+<text class="note" x="580" y="530" text-anchor="middle">D-Up/Down/Left/Right = D-Pad &#183; LB/RB = Shoulder buttons &#183; L3/R3 = Stick click &#183; Guide = Xbox button &#183; Back = View/Select &#183; Start = Menu</text>
+<text class="note" x="580" y="555" text-anchor="middle">Analog stick X/Y → matching virtual stick (left stick Y inverted per config.json)</text>
+</svg>
