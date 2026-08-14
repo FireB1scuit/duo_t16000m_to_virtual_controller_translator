@@ -11,6 +11,17 @@
 - [ ] map extra button on base
 - [ ] map horizontal X rotation for X joystick acceleration
 
+## Setup guide
+
+1. Install the [ViGEmBus driver](https://github.com/ViGEm/ViGEmBus/releases) — this lets `vgamepad` create a virtual Xbox 360 controller on Windows.
+2. Install Python dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+3. Plug in both T.16000M joysticks.
+4. Run `python main.py --test` to print raw axis/button/hat values for each stick. Use this to confirm the indices reported by your hardware match the ones in [config.json](config.json) — adjust `stick_x_axis`, `stick_y_axis`, `trigger_button`, and the button/hat maps if they don't.
+5. Run `python main.py` to start the translator. The two joysticks are combined into a single virtual Xbox 360 controller, which any game or app that reads XInput controllers will pick up.
+
 ## Button mapping
 
 Mapping is defined in [config.json](config.json); `BUTTON_NAME_MAP` in [main.py](main.py) lists the supported target names.
