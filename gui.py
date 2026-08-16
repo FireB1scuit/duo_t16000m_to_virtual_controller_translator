@@ -1,0 +1,602 @@
+"""
+Windows GUI for the T.16000M -> virtual Xbox 360 controller translator.
+
+Four tabs:
+  - Control: connect the sticks, pick which config is active, start/stop
+    the virtual controller.
+  - Debug: live raw + processed axis/button/hat values for both sticks.
+  - Calibration: re-run the left/right identification if you swap USB ports.
+  - Configs: browse the read-only Default mapping and any custom mappings,
+    and edit custom ones with a point-and-click button/hat mapping table.
+
+Built on config_store.py / stick_engine.py, which are also used by the
+plain CLI in main.py.
+"""
+
+import threading
+import tkinter as tk
+from tkinter import messagebox, simpledialog, ttk
+
+import pygame
+
+import config_store
+from stick_engine import StickManager, apply_deadzone, safe_axis, safe_button
+
+APP_TITLE = "HOSAS Translator"
+
+
+class ScrollableFrame(ttk.Frame):
+    """A vertically scrollable container. Put widgets in .body."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        canvas = tk.Canvas(self, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        self.body = ttk.Frame(canvas)
+
+        self.body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        window = canvas.create_window((0, 0), window=self.body, anchor="nw")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(window, width=e.width))
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        def on_mousewheel(event):
+            canvas.yview_scroll(-1 * (event.delta // 120), "units")
+
+        canvas.bind_all("<MouseWheel>", on_mousewheel, add="+")
+
+
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title(APP_TITLE)
+        self.geometry("820x600")
+        self.minsize(700, 500)
+
+        pygame.init()
+        self.manager = StickManager()
+        self._connect_lock = threading.Lock()
+        self._abort_calibration = threading.Event()
+
+        self.active_config_name = tk.StringVar(value=config_store.get_last_active_config())
+        self.connection_status = tk.StringVar(value="Not connected")
+        self.calibration_status = tk.StringVar(value="")
+        self.controller_status = tk.StringVar(value="Virtual controller: stopped")
+
+        self._build_ui()
+        self._load_active_config(persist=False)
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.after(300, lambda: self._connect(recalibrate=False))
+        self.after(100, self._refresh_debug)
+
+    # ------------------------------------------------------------ layout --
+    def _build_ui(self):
+        notebook = ttk.Notebook(self)
+        notebook.pack(fill="both", expand=True)
+
+        self.control_tab = ttk.Frame(notebook, padding=16)
+        self.debug_tab = ttk.Frame(notebook, padding=16)
+        self.calibration_tab = ttk.Frame(notebook, padding=16)
+        self.configs_tab = ttk.Frame(notebook, padding=16)
+
+        notebook.add(self.control_tab, text="Control")
+        notebook.add(self.debug_tab, text="Debug")
+        notebook.add(self.calibration_tab, text="Calibration")
+        notebook.add(self.configs_tab, text="Configs")
+
+        self._build_control_tab()
+        self._build_debug_tab()
+        self._build_calibration_tab()
+        self._build_configs_tab()
+
+    # ---------------------------------------------------------- control --
+    def _build_control_tab(self):
+        tab = self.control_tab
+
+        conn = ttk.LabelFrame(tab, text="Sticks", padding=12)
+        conn.pack(fill="x", pady=(0, 12))
+        ttk.Label(conn, textvariable=self.connection_status).pack(side="left")
+        ttk.Button(conn, text="Connect / Refresh", command=lambda: self._connect(recalibrate=False)).pack(
+            side="right"
+        )
+
+        cfg = ttk.LabelFrame(tab, text="Active mapping", padding=12)
+        cfg.pack(fill="x", pady=(0, 12))
+        self.active_config_combo = ttk.Combobox(
+            cfg, textvariable=self.active_config_name, state="readonly", values=config_store.list_config_names()
+        )
+        self.active_config_combo.pack(side="left", fill="x", expand=True)
+        self.active_config_combo.bind("<<ComboboxSelected>>", lambda e: self._load_active_config(persist=True))
+
+        run = ttk.LabelFrame(tab, text="Virtual controller", padding=12)
+        run.pack(fill="x")
+        ttk.Label(run, textvariable=self.controller_status).pack(side="left")
+        self.toggle_button = ttk.Button(run, text="Start", command=self._toggle_controller, state="disabled")
+        self.toggle_button.pack(side="right")
+
+    def _toggle_controller(self):
+        if self.manager.gamepad_active:
+            self.manager.stop_gamepad()
+            self.controller_status.set("Virtual controller: stopped")
+            self.toggle_button.config(text="Start")
+            return
+        try:
+            self.manager.start_gamepad()
+        except Exception as exc:
+            messagebox.showerror(
+                APP_TITLE, f"Couldn't create the virtual controller:\n{exc}\n\nIs ViGEmBus installed?"
+            )
+            return
+        self.controller_status.set("Virtual controller: active")
+        self.toggle_button.config(text="Stop")
+
+    def _reset_controller_ui(self):
+        self.controller_status.set("Virtual controller: stopped")
+        self.toggle_button.config(text="Start")
+
+    # ------------------------------------------------------------ debug --
+    def _build_debug_tab(self):
+        tab = self.debug_tab
+        self.debug_widgets = {}
+        for side, column in (("left", 0), ("right", 1)):
+            frame = ttk.LabelFrame(tab, text=side.capitalize(), padding=12)
+            frame.grid(row=0, column=column, sticky="nsew", padx=8)
+            tab.columnconfigure(column, weight=1)
+
+            name_label = ttk.Label(frame, text="Not connected", font=("Segoe UI", 9, "bold"))
+            name_label.pack(anchor="w")
+
+            processed_label = ttk.Label(frame, text="x=+0.00 y=+0.00  trigger=False")
+            processed_label.pack(anchor="w", pady=(6, 6))
+
+            axes_label = ttk.Label(frame, text="axes: -", justify="left")
+            axes_label.pack(anchor="w")
+
+            buttons_label = ttk.Label(frame, text="buttons pressed: -", justify="left", wraplength=280)
+            buttons_label.pack(anchor="w", pady=(6, 0))
+
+            hat_label = ttk.Label(frame, text="hat: (0, 0)")
+            hat_label.pack(anchor="w", pady=(6, 0))
+
+            self.debug_widgets[side] = {
+                "name": name_label,
+                "processed": processed_label,
+                "axes": axes_label,
+                "buttons": buttons_label,
+                "hat": hat_label,
+            }
+
+    def _refresh_debug(self):
+        snap = self.manager.get_snapshot()
+        cfg = self.manager.config
+        for side in ("left", "right"):
+            widgets = self.debug_widgets[side]
+            state = snap.get(side)
+            if state is None:
+                widgets["name"].config(text="Not connected")
+                self.after(100, self._refresh_debug)
+                return
+            widgets["name"].config(text=state["name"])
+
+            x = apply_deadzone(safe_axis(state["axes"], cfg["stick_x_axis"]), cfg["stick_deadzone"])
+            y = apply_deadzone(safe_axis(state["axes"], cfg["stick_y_axis"]), cfg["stick_deadzone"])
+            if cfg[f"invert_y_{side}"]:
+                y = -y
+            trig = safe_button(state["buttons"], cfg["trigger_button"])
+            widgets["processed"].config(text=f"x={x:+.2f} y={y:+.2f}  trigger={trig}")
+
+            axes_text = "  ".join(f"{i}:{v:+.2f}" for i, v in enumerate(state["axes"]))
+            widgets["axes"].config(text=f"axes: {axes_text}")
+
+            pressed = [str(i) for i, v in enumerate(state["buttons"]) if v]
+            widgets["buttons"].config(text="buttons pressed: " + (", ".join(pressed) if pressed else "none"))
+
+            widgets["hat"].config(text=f"hat: {state['hat']}")
+
+        self.after(50, self._refresh_debug)
+
+    # ------------------------------------------------------ calibration --
+    def _build_calibration_tab(self):
+        tab = self.calibration_tab
+        ttk.Label(
+            tab,
+            text=(
+                "Both sticks report identical hardware IDs, so left/right is determined by "
+                "wiggling the left stick once. That result is cached, so this normally only "
+                "runs the first time or after you change USB ports."
+            ),
+            wraplength=680,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 12))
+
+        self.calibration_label = ttk.Label(tab, textvariable=self.calibration_status, font=("Segoe UI", 10))
+        self.calibration_label.pack(anchor="w", pady=(0, 12))
+
+        row = ttk.Frame(tab)
+        row.pack(anchor="w")
+        self.recalibrate_button = ttk.Button(row, text="Recalibrate", command=self._recalibrate)
+        self.recalibrate_button.pack(side="left")
+        self.abort_button = ttk.Button(row, text="Cancel", command=self._abort_calibration.set, state="disabled")
+        self.abort_button.pack(side="left", padx=(8, 0))
+
+    def _recalibrate(self):
+        self._connect(recalibrate=True)
+
+    # ------------------------------------------------------------ configs --
+    def _build_configs_tab(self):
+        tab = self.configs_tab
+        tab.columnconfigure(1, weight=1)
+        tab.rowconfigure(0, weight=1)
+
+        left = ttk.Frame(tab)
+        left.grid(row=0, column=0, sticky="ns", padx=(0, 12))
+
+        self.config_listbox = tk.Listbox(left, exportselection=False, width=22, height=18)
+        self.config_listbox.pack(fill="y", expand=True)
+        self.config_listbox.bind("<<ListboxSelect>>", lambda e: self._on_config_select())
+
+        btns = ttk.Frame(left)
+        btns.pack(fill="x", pady=(8, 0))
+        ttk.Button(btns, text="New from Default", command=self._new_config).pack(fill="x")
+        ttk.Button(btns, text="Duplicate", command=self._duplicate_config).pack(fill="x", pady=(4, 0))
+        self.delete_config_button = ttk.Button(btns, text="Delete", command=self._delete_config)
+        self.delete_config_button.pack(fill="x", pady=(4, 0))
+        ttk.Button(btns, text="Set as Active", command=self._set_active_from_list).pack(fill="x", pady=(4, 0))
+
+        right = ttk.Frame(tab)
+        right.grid(row=0, column=1, sticky="nsew")
+        self.editor = MappingEditor(right, on_save_as=self._save_as_new_config, on_saved=self._on_config_saved)
+        self.editor.pack(fill="both", expand=True)
+
+        self._refresh_config_list(select=config_store.get_last_active_config())
+
+    def _refresh_config_list(self, select=None):
+        names = config_store.list_config_names()
+        self.config_listbox.delete(0, "end")
+        for name in names:
+            self.config_listbox.insert("end", name)
+        self.active_config_combo.config(values=names)
+        target = select if select in names else names[0]
+        idx = names.index(target)
+        self.config_listbox.selection_clear(0, "end")
+        self.config_listbox.selection_set(idx)
+        self.config_listbox.see(idx)
+        self._on_config_select()
+
+    def _selected_config_name(self):
+        sel = self.config_listbox.curselection()
+        if not sel:
+            return config_store.DEFAULT_CONFIG_NAME
+        return self.config_listbox.get(sel[0])
+
+    def _on_config_select(self):
+        name = self._selected_config_name()
+        config = config_store.load_config(name)
+        protected = config_store.is_protected(name)
+        self.editor.load(name, config, read_only=protected)
+        self.delete_config_button.config(state="disabled" if protected else "normal")
+
+    def _new_config(self):
+        name = simpledialog.askstring(APP_TITLE, "Name for the new config (copied from Default):", parent=self)
+        if not name:
+            return
+        try:
+            config_store.save_custom_config(name, dict(config_store.DEFAULT_CONFIG))
+        except ValueError as exc:
+            messagebox.showerror(APP_TITLE, str(exc))
+            return
+        self._refresh_config_list(select=name)
+
+    def _duplicate_config(self):
+        source_name = self._selected_config_name()
+        source = config_store.load_config(source_name)
+        name = simpledialog.askstring(APP_TITLE, f"Name for the copy of {source_name!r}:", parent=self)
+        if not name:
+            return
+        try:
+            config_store.save_custom_config(name, source)
+        except ValueError as exc:
+            messagebox.showerror(APP_TITLE, str(exc))
+            return
+        self._refresh_config_list(select=name)
+
+    def _delete_config(self):
+        name = self._selected_config_name()
+        if config_store.is_protected(name):
+            return
+        if not messagebox.askyesno(APP_TITLE, f"Delete config {name!r}? This can't be undone."):
+            return
+        config_store.delete_custom_config(name)
+        if self.active_config_name.get() == name:
+            self.active_config_name.set(config_store.DEFAULT_CONFIG_NAME)
+            self._load_active_config(persist=True)
+        self._refresh_config_list()
+
+    def _set_active_from_list(self):
+        name = self._selected_config_name()
+        self.active_config_name.set(name)
+        self._load_active_config(persist=True)
+        messagebox.showinfo(APP_TITLE, f"{name!r} is now the active mapping.")
+
+    def _on_config_saved(self, name):
+        # If the config being edited is also the active one, refresh the
+        # manager's copy so the change takes effect immediately.
+        if self.active_config_name.get() == name:
+            self._load_active_config(persist=False)
+
+    def _save_as_new_config(self, config):
+        name = simpledialog.askstring(APP_TITLE, "Save the Default mapping as a new custom config named:", parent=self)
+        if not name:
+            return
+        try:
+            config_store.save_custom_config(name, config)
+        except ValueError as exc:
+            messagebox.showerror(APP_TITLE, str(exc))
+            return
+        self._refresh_config_list(select=name)
+
+    # -------------------------------------------------------------- misc --
+    def _load_active_config(self, persist):
+        name = self.active_config_name.get()
+        try:
+            config = config_store.load_config(name)
+        except FileNotFoundError:
+            name = config_store.DEFAULT_CONFIG_NAME
+            self.active_config_name.set(name)
+            config = config_store.load_config(name)
+        self.manager.set_config(config)
+        if persist:
+            config_store.set_last_active_config(name)
+
+    def _connect(self, recalibrate):
+        with self._connect_lock:
+            if getattr(self, "_connecting", False):
+                return
+            self._connecting = True
+        self.recalibrate_button.config(state="disabled")
+        self.abort_button.config(state="normal" if recalibrate else "disabled")
+        self._abort_calibration.clear()
+        self.connection_status.set("Connecting...")
+        threading.Thread(target=self._connect_worker, args=(recalibrate,), daemon=True).start()
+
+    def _connect_worker(self, recalibrate):
+        try:
+            # Stop the poll thread before rediscovering devices: discovery
+            # tears down and reinits pygame's joystick subsystem, which
+            # would invalidate Joystick objects the poll loop is mid-read on.
+            self.manager.stop_polling()
+            self.after(0, self._reset_controller_ui)
+
+            sticks, all_joysticks = self.manager.find_sticks()
+            if len(sticks) != 2:
+                names = ", ".join(j.get_name() for j in all_joysticks) or "none"
+                self.after(0, lambda: self._connect_failed(f"Expected 2 T.16000M sticks, found {len(sticks)} ({names})"))
+                return
+
+            def status_cb(msg):
+                self.after(0, lambda: self.calibration_status.set(msg))
+
+            def progress_cb(remaining):
+                self.after(0, lambda: self.calibration_status.set(f"Move the LEFT stick now... ({remaining:0.0f}s)"))
+
+            used_cache = self.manager.assign(
+                sticks,
+                recalibrate=recalibrate,
+                status_cb=status_cb,
+                progress_cb=progress_cb,
+                should_abort=self._abort_calibration.is_set,
+            )
+            self.manager.start_polling()
+            self.after(0, lambda: self._connect_succeeded(used_cache))
+        except Exception as exc:
+            self.after(0, lambda: self._connect_failed(str(exc)))
+
+    def _connect_succeeded(self, used_cache):
+        self._connecting = False
+        left, right = self.manager.left, self.manager.right
+        suffix = " (cached assignment)" if used_cache else " (just calibrated)"
+        self.connection_status.set(f"Connected -> Left: {left.get_name()}  |  Right: {right.get_name()}{suffix}")
+        self.toggle_button.config(state="normal")
+        self.recalibrate_button.config(state="normal")
+        self.abort_button.config(state="disabled")
+
+    def _connect_failed(self, message):
+        self._connecting = False
+        self.connection_status.set(f"Not connected ({message})")
+        self.toggle_button.config(state="disabled")
+        self.recalibrate_button.config(state="normal")
+        self.abort_button.config(state="disabled")
+
+    def _on_close(self):
+        self._abort_calibration.set()
+        try:
+            self.manager.stop_polling()
+        except Exception:
+            pass
+        pygame.quit()
+        self.destroy()
+
+
+class MappingEditor(ttk.Frame):
+    """Editor for one config: general settings + per-button/hat target pickers."""
+
+    BUTTON_CHOICES = [config_store.UNMAPPED] + sorted(config_store.BUTTON_NAME_MAP.keys())
+
+    def __init__(self, parent, on_save_as, on_saved):
+        super().__init__(parent)
+        self.on_save_as = on_save_as
+        self.on_saved = on_saved
+        self.name = None
+        self.read_only = True
+        self._vars = {}
+
+        header = ttk.Frame(self)
+        header.pack(fill="x")
+        self.title_label = ttk.Label(header, text="", font=("Segoe UI", 11, "bold"))
+        self.title_label.pack(side="left")
+        self.save_button = ttk.Button(header, text="Save", command=self._save)
+        self.save_button.pack(side="right")
+        self.save_as_button = ttk.Button(header, text="Save As New Custom Config...", command=self._save_as)
+        self.save_as_button.pack(side="right", padx=(0, 8))
+
+        scroll = ScrollableFrame(self)
+        scroll.pack(fill="both", expand=True, pady=(12, 0))
+        self.body = scroll.body
+
+        self._build_general_section()
+        self._build_mapping_section("left_buttons", "Left stick buttons", config_store.MAPPABLE_BUTTON_INDICES)
+        self._build_mapping_section("right_buttons", "Right stick buttons", config_store.MAPPABLE_BUTTON_INDICES)
+        self._build_hat_section()
+
+    def _build_general_section(self):
+        frame = ttk.LabelFrame(self.body, text="General", padding=10)
+        frame.pack(fill="x", padx=4, pady=6)
+
+        def spin(row, key, label, frm, to):
+            ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", padx=(0, 8), pady=2)
+            var = tk.IntVar()
+            ttk.Spinbox(frame, from_=frm, to=to, textvariable=var, width=6).grid(row=row, column=1, sticky="w")
+            self._vars[key] = var
+
+        spin(0, "stick_x_axis", "Stick X axis index", 0, 7)
+        spin(1, "stick_y_axis", "Stick Y axis index", 0, 7)
+        spin(2, "trigger_button", "Trigger button index", 0, 19)
+        spin(3, "poll_hz", "Poll rate (Hz)", 30, 250)
+
+        deadzone_var = tk.DoubleVar()
+        ttk.Label(frame, text="Stick deadzone").grid(row=4, column=0, sticky="w", padx=(0, 8), pady=2)
+        ttk.Scale(frame, from_=0.0, to=0.5, orient="horizontal", variable=deadzone_var, length=160).grid(
+            row=4, column=1, sticky="w"
+        )
+        self._vars["stick_deadzone"] = deadzone_var
+
+        left_invert = tk.BooleanVar()
+        right_invert = tk.BooleanVar()
+        ttk.Checkbutton(frame, text="Invert left Y", variable=left_invert).grid(row=5, column=0, sticky="w", pady=2)
+        ttk.Checkbutton(frame, text="Invert right Y", variable=right_invert).grid(row=5, column=1, sticky="w", pady=2)
+        self._vars["invert_y_left"] = left_invert
+        self._vars["invert_y_right"] = right_invert
+
+    def _build_mapping_section(self, key, title, indices):
+        frame = ttk.LabelFrame(self.body, text=title, padding=10)
+        frame.pack(fill="x", padx=4, pady=6)
+        per_row = 3
+        section_vars = {}
+        for row, index in enumerate(indices):
+            ttk.Label(frame, text=f"Button {index}").grid(
+                row=row // per_row, column=(row % per_row) * 2, sticky="w", padx=(0, 4), pady=2
+            )
+            var = tk.StringVar(value=config_store.UNMAPPED)
+            combo = ttk.Combobox(frame, textvariable=var, values=self.BUTTON_CHOICES, state="readonly", width=13)
+            combo.grid(row=row // per_row, column=(row % per_row) * 2 + 1, sticky="w", padx=(0, 12), pady=2)
+            section_vars[index] = var
+        self._vars[key] = section_vars
+
+    def _build_hat_section(self):
+        frame = ttk.LabelFrame(self.body, text="Hat (D-pad)", padding=10)
+        frame.pack(fill="x", padx=4, pady=6)
+        ttk.Label(frame, text="Direction").grid(row=0, column=0, sticky="w")
+        ttk.Label(frame, text="Left stick ->").grid(row=0, column=1, sticky="w")
+        ttk.Label(frame, text="Right stick ->").grid(row=0, column=2, sticky="w")
+
+        left_vars, right_vars = {}, {}
+        for row, (x, y, label) in enumerate(config_store.HAT_DIRECTIONS, start=1):
+            ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", pady=2)
+            lvar = tk.StringVar(value=config_store.UNMAPPED)
+            rvar = tk.StringVar(value=config_store.UNMAPPED)
+            ttk.Combobox(frame, textvariable=lvar, values=self.BUTTON_CHOICES, state="readonly", width=14).grid(
+                row=row, column=1, sticky="w", padx=(0, 12), pady=2
+            )
+            ttk.Combobox(frame, textvariable=rvar, values=self.BUTTON_CHOICES, state="readonly", width=14).grid(
+                row=row, column=2, sticky="w", pady=2
+            )
+            left_vars[(x, y)] = lvar
+            right_vars[(x, y)] = rvar
+        self._vars["left_hat"] = left_vars
+        self._vars["right_hat"] = right_vars
+
+    def load(self, name, config, read_only):
+        self.name = name
+        self.read_only = read_only
+        self.title_label.config(text=f"{name}{' (read-only)' if read_only else ''}")
+
+        for key in ("stick_x_axis", "stick_y_axis", "trigger_button", "poll_hz", "stick_deadzone"):
+            self._vars[key].set(config[key])
+        self._vars["invert_y_left"].set(config["invert_y_left"])
+        self._vars["invert_y_right"].set(config["invert_y_right"])
+
+        for key in ("left_buttons", "right_buttons"):
+            for index, var in self._vars[key].items():
+                var.set(config[key].get(str(index), config_store.UNMAPPED))
+
+        for key in ("left_hat", "right_hat"):
+            for direction, var in self._vars[key].items():
+                dir_str = f"{direction[0]},{direction[1]}"
+                var.set(config[key].get(dir_str, config_store.UNMAPPED))
+
+        state = "disabled" if read_only else "readonly"
+        self._set_widget_states(state)
+        self.save_button.config(state="disabled" if read_only else "normal")
+        if read_only:
+            self.save_as_button.pack(side="right", padx=(0, 8))
+        else:
+            self.save_as_button.pack_forget()
+
+    def _set_widget_states(self, combobox_state):
+        for widget in self._iter_input_widgets(self.body):
+            if isinstance(widget, ttk.Combobox):
+                widget.config(state=combobox_state)
+            else:
+                widget.config(state="disabled" if self.read_only else "normal")
+
+    def _iter_input_widgets(self, widget):
+        for child in widget.winfo_children():
+            if isinstance(child, (ttk.Combobox, ttk.Spinbox, ttk.Scale, ttk.Checkbutton)):
+                yield child
+            yield from self._iter_input_widgets(child)
+
+    def _collect_config(self):
+        config = {
+            "stick_x_axis": self._vars["stick_x_axis"].get(),
+            "stick_y_axis": self._vars["stick_y_axis"].get(),
+            "trigger_button": self._vars["trigger_button"].get(),
+            "poll_hz": self._vars["poll_hz"].get(),
+            "stick_deadzone": round(self._vars["stick_deadzone"].get(), 3),
+            "invert_y_left": self._vars["invert_y_left"].get(),
+            "invert_y_right": self._vars["invert_y_right"].get(),
+        }
+        for key in ("left_buttons", "right_buttons"):
+            config[key] = {
+                str(index): var.get() for index, var in self._vars[key].items() if var.get() != config_store.UNMAPPED
+            }
+        for key in ("left_hat", "right_hat"):
+            config[key] = {
+                f"{d[0]},{d[1]}": var.get() for d, var in self._vars[key].items() if var.get() != config_store.UNMAPPED
+            }
+        return config
+
+    def _save(self):
+        if self.read_only or self.name is None:
+            return
+        config = self._collect_config()
+        try:
+            config_store.save_custom_config(self.name, config)
+        except ValueError as exc:
+            messagebox.showerror(APP_TITLE, str(exc))
+            return
+        messagebox.showinfo(APP_TITLE, f"Saved {self.name!r}.")
+        self.on_saved(self.name)
+
+    def _save_as(self):
+        self.on_save_as(self._collect_config())
+
+
+def main():
+    app = App()
+    app.mainloop()
+
+
+if __name__ == "__main__":
+    main()
