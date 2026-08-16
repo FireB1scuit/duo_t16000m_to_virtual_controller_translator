@@ -21,6 +21,7 @@ from pathlib import Path
 import pygame
 
 CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
+CALIBRATION_PATH = Path(__file__).resolve().parent / "stick_calibration.json"
 
 DEFAULT_CONFIG = {
     "stick_x_axis": 0,
@@ -110,10 +111,40 @@ def apply_deadzone(value, deadzone=None):
     return sign * min(scaled, 1.0)
 
 
-def identify_sticks(joysticks):
+def load_cached_left_index():
+    if not CALIBRATION_PATH.exists():
+        return None
+    try:
+        with open(CALIBRATION_PATH, "r") as f:
+            return json.load(f).get("left_index")
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def save_cached_left_index(left_index):
+    with open(CALIBRATION_PATH, "w") as f:
+        json.dump({"left_index": left_index}, f)
+
+
+def identify_sticks(joysticks, recalibrate=False):
+    # T.16000M pairs report identical vendor/product IDs with no serial number,
+    # so there's no hardware identifier to tell them apart. The one signal we
+    # do have is which USB enumeration slot each occupies, which stays stable
+    # across runs as long as they stay plugged into the same ports. So we
+    # determine left/right once via movement and cache that slot for next time.
+    if not recalibrate:
+        cached_index = load_cached_left_index()
+        if cached_index is not None and 0 <= cached_index < len(joysticks):
+            left = joysticks[cached_index]
+            right = next(j for j in joysticks if j is not left)
+            print(f"Using cached stick assignment -> Left: {left.get_name()}, Right: {right.get_name()}")
+            print("(run with --recalibrate if the sticks are swapped or plugged into different ports)")
+            return left, right
+
     print("Calibration: move the LEFT stick now (just the left one)...")
     left = wait_for_active_stick(joysticks)
     right = next(j for j in joysticks if j is not left)
+    save_cached_left_index(joysticks.index(left))
     print(f"Left  -> {left.get_name()} (instance {left.get_instance_id()})")
     print(f"Right -> {right.get_name()} (instance {right.get_instance_id()})")
     return left, right
@@ -273,7 +304,7 @@ def main():
         names = ", ".join(j.get_name() for j in all_joysticks) or "none"
         sys.exit(f"Expected 2 T.16000M sticks, found {len(joysticks)}. Detected devices: {names}")
 
-    left, right = identify_sticks(joysticks)
+    left, right = identify_sticks(joysticks, recalibrate="--recalibrate" in sys.argv)
 
     set_high_res_timer(True)
     try:

@@ -22,6 +22,8 @@
 4. Run `python main.py --test` to print raw axis/button/hat values for each stick. Use this to confirm the indices reported by your hardware match the ones in [config.json](config.json) — adjust `stick_x_axis`, `stick_y_axis`, `trigger_button`, and the button/hat maps if they don't.
 5. Run `python main.py` to start the translator. The two joysticks are combined into a single virtual Xbox 360 controller, which any game or app that reads XInput controllers will pick up.
 
+On first run (and in `--test`/`--debug` modes), you'll be asked to wiggle the left stick so the two identical T.16000M units — which report the same vendor/product ID and have no serial to tell them apart — can be told apart. That assignment is then cached in `stick_calibration.json` (git-ignored, machine-specific), so later runs skip the prompt automatically. If you swap which stick is plugged into which USB port, run `python main.py --recalibrate` to redo the wiggle test and refresh the cache.
+
 ## Button mapping
 
 Mapping is defined in [config.json](config.json); `BUTTON_NAME_MAP` in [main.py](main.py) lists the supported target names.
