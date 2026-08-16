@@ -43,6 +43,17 @@ python main.py --config NAME   # use a custom mapping instead of Default
 python main.py                 # run the translator (Ctrl+C to stop)
 ```
 
+## Project structure
+
+| File | Role |
+| --- | --- |
+| [config_store.py](config_store.py) | The Default mapping (embedded, read-only, always regenerated if missing) and custom mapping profiles, stored under `%APPDATA%\HOSAS_Translator\`. |
+| [stick_engine.py](stick_engine.py) | Hardware layer: joystick discovery, left/right calibration + its cache, the background polling thread (`StickManager`), and `compute_virtual_state()` — the one function that turns raw input + a config into processed stick/trigger values and active button names, used by everything else so they can't disagree. |
+| [controller_view.py](controller_view.py) | The Canvas-drawn Xbox 360 controller schematic shown on the Debug tab. |
+| [gui.py](gui.py) | The Windows app — this is what `build.ps1` packages into the .exe. |
+| [main.py](main.py) | The headless CLI (`--test` / `--debug` / `--recalibrate` / `--config`), built on the same `config_store.py` / `stick_engine.py`. |
+| [build.ps1](build.ps1) | Packages `gui.py` into `dist\HOSAS Translator.exe` via PyInstaller. |
+
 ## Building the .exe
 
 ```
@@ -51,6 +62,10 @@ pip install -r requirements-dev.txt
 ```
 
 This produces a single-file `dist\HOSAS Translator.exe` with `--noconsole` (no terminal window) that bundles the Python interpreter, so the target machine only needs the ViGEmBus driver installed, not Python. Since it's an unsigned homebrew build, Windows SmartScreen may ask you to confirm "Run anyway" the first time.
+
+`build.ps1` also explicitly bundles vgamepad's `ViGEmClient.dll` as data (`--add-data`) — vgamepad loads it from a path relative to its own package folder at runtime rather than through a normal Python import, so PyInstaller's automatic dependency analysis doesn't find it on its own. Without that, the exe runs fine but clicking **Start** fails with `Failed to load dynlib/dll ... ViGEmClient.dll`.
+
+If a rebuild fails with a `PermissionError` on `dist\HOSAS Translator.exe`, it's because a previous build of the exe is still running (Windows locks the file while it's open) — close it and rebuild.
 
 ## Button mapping
 
