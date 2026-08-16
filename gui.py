@@ -20,7 +20,8 @@ from tkinter import messagebox, simpledialog, ttk
 import pygame
 
 import config_store
-from stick_engine import StickManager, apply_deadzone, safe_axis, safe_button
+from controller_view import ControllerSchematic
+from stick_engine import StickManager, compute_virtual_state
 
 APP_TITLE = "HOSAS Translator"
 
@@ -139,11 +140,16 @@ class App(tk.Tk):
     # ------------------------------------------------------------ debug --
     def _build_debug_tab(self):
         tab = self.debug_tab
+        tab.columnconfigure(0, weight=1)
+        tab.columnconfigure(1, weight=1)
+
+        self.schematic = ControllerSchematic(tab)
+        self.schematic.grid(row=0, column=0, columnspan=2, pady=(0, 12))
+
         self.debug_widgets = {}
         for side, column in (("left", 0), ("right", 1)):
             frame = ttk.LabelFrame(tab, text=side.capitalize(), padding=12)
-            frame.grid(row=0, column=column, sticky="nsew", padx=8)
-            tab.columnconfigure(column, weight=1)
+            frame.grid(row=1, column=column, sticky="nsew", padx=8)
 
             name_label = ttk.Label(frame, text="Not connected", font=("Segoe UI", 9, "bold"))
             name_label.pack(anchor="w")
@@ -171,29 +177,42 @@ class App(tk.Tk):
     def _refresh_debug(self):
         snap = self.manager.get_snapshot()
         cfg = self.manager.config
-        for side in ("left", "right"):
-            widgets = self.debug_widgets[side]
-            state = snap.get(side)
-            if state is None:
-                widgets["name"].config(text="Not connected")
-                self.after(100, self._refresh_debug)
-                return
-            widgets["name"].config(text=state["name"])
+        left, right = snap.get("left"), snap.get("right")
+        if left is None or right is None:
+            for side in ("left", "right"):
+                self.debug_widgets[side]["name"].config(text="Not connected")
+            self.after(100, self._refresh_debug)
+            return
 
-            x = apply_deadzone(safe_axis(state["axes"], cfg["stick_x_axis"]), cfg["stick_deadzone"])
-            y = apply_deadzone(safe_axis(state["axes"], cfg["stick_y_axis"]), cfg["stick_deadzone"])
-            if cfg[f"invert_y_{side}"]:
-                y = -y
-            trig = safe_button(state["buttons"], cfg["trigger_button"])
-            widgets["processed"].config(text=f"x={x:+.2f} y={y:+.2f}  trigger={trig}")
+        vs = compute_virtual_state(left, right, cfg)
+        self.schematic.set_active(vs["active_buttons"], vs["lt"], vs["rt"], vs["lx"], vs["ly"], vs["rx"], vs["ry"])
+
+        for side, state, x, y, trig, button_map, hat_map in (
+            ("left", left, vs["lx"], vs["ly"], vs["lt"], cfg["left_buttons"], cfg["left_hat"]),
+            ("right", right, vs["rx"], vs["ry"], vs["rt"], cfg["right_buttons"], cfg["right_hat"]),
+        ):
+            widgets = self.debug_widgets[side]
+            widgets["name"].config(text=state["name"])
+            widgets["processed"].config(text=f"x={x:+.2f} y={y:+.2f}  trigger={bool(trig)}")
 
             axes_text = "  ".join(f"{i}:{v:+.2f}" for i, v in enumerate(state["axes"]))
             widgets["axes"].config(text=f"axes: {axes_text}")
 
-            pressed = [str(i) for i, v in enumerate(state["buttons"]) if v]
-            widgets["buttons"].config(text="buttons pressed: " + (", ".join(pressed) if pressed else "none"))
+            trig_target = "LT" if side == "left" else "RT"
+            parts = []
+            for i, pressed in enumerate(state["buttons"]):
+                if not pressed:
+                    continue
+                if i == cfg["trigger_button"]:
+                    parts.append(f"{i}→{trig_target}")
+                else:
+                    target = button_map.get(str(i))
+                    parts.append(f"{i}→{target}" if target else f"{i} (unmapped)")
+            widgets["buttons"].config(text="buttons pressed: " + (", ".join(parts) if parts else "none"))
 
-            widgets["hat"].config(text=f"hat: {state['hat']}")
+            hat_target = hat_map.get(f"{state['hat'][0]},{state['hat'][1]}")
+            hat_text = f"hat: {state['hat']}" + (f" → {hat_target}" if hat_target else "")
+            widgets["hat"].config(text=hat_text)
 
         self.after(50, self._refresh_debug)
 

@@ -135,6 +135,47 @@ def safe_button(buttons, index):
     return bool(buttons[index]) if 0 <= index < len(buttons) else False
 
 
+def _active_target_names(state, button_map, hat_map):
+    """Target names (e.g. "B", "DPAD_UP") currently active on one stick,
+    per that stick's button/hat mapping. Names, not vgamepad enum values, so
+    this has no dependency on vgamepad and can be reused for display."""
+    active = set()
+    for index_str, name in button_map.items():
+        if safe_button(state["buttons"], int(index_str)):
+            active.add(name)
+    hat_value = state["hat"]
+    for direction_str, name in hat_map.items():
+        x_str, y_str = direction_str.split(",")
+        if (int(x_str), int(y_str)) == hat_value:
+            active.add(name)
+    return active
+
+
+def compute_virtual_state(left_state, right_state, config):
+    """Maps raw left/right stick state through a config into what the
+    virtual controller would show: processed stick axes, LT/RT, and the set
+    of active button target names. The single source of truth for both
+    GamepadController (what's actually sent) and the debug view (what's
+    shown), so they can't drift apart."""
+    lx = apply_deadzone(safe_axis(left_state["axes"], config["stick_x_axis"]), config["stick_deadzone"])
+    ly = apply_deadzone(safe_axis(left_state["axes"], config["stick_y_axis"]), config["stick_deadzone"])
+    rx = apply_deadzone(safe_axis(right_state["axes"], config["stick_x_axis"]), config["stick_deadzone"])
+    ry = apply_deadzone(safe_axis(right_state["axes"], config["stick_y_axis"]), config["stick_deadzone"])
+    if config["invert_y_left"]:
+        ly = -ly
+    if config["invert_y_right"]:
+        ry = -ry
+
+    trig_index = config["trigger_button"]
+    lt = 1.0 if safe_button(left_state["buttons"], trig_index) else 0.0
+    rt = 1.0 if safe_button(right_state["buttons"], trig_index) else 0.0
+
+    active_buttons = _active_target_names(left_state, config["left_buttons"], config["left_hat"])
+    active_buttons |= _active_target_names(right_state, config["right_buttons"], config["right_hat"])
+
+    return {"lx": lx, "ly": ly, "rx": rx, "ry": ry, "lt": lt, "rt": rt, "active_buttons": active_buttons}
+
+
 class GamepadController:
     """Wraps a vgamepad VX360Gamepad, mapping raw stick state to it per a
     config dict. Import of vgamepad is deferred so modules that only need
@@ -149,66 +190,34 @@ class GamepadController:
 
     def set_config(self, config):
         self.config = config
-        self.left_button_map = self._build_button_map(config["left_buttons"])
-        self.right_button_map = self._build_button_map(config["right_buttons"])
-        self.left_hat_map = self._build_hat_map(config["left_hat"])
-        self.right_hat_map = self._build_hat_map(config["right_hat"])
-        self.all_buttons = (
-            set(self.left_button_map.values())
-            | set(self.right_button_map.values())
-            | set(self.left_hat_map.values())
-            | set(self.right_hat_map.values())
+        mapped_names = (
+            set(config["left_buttons"].values())
+            | set(config["right_buttons"].values())
+            | set(config["left_hat"].values())
+            | set(config["right_hat"].values())
         )
-
-    def _build_button_map(self, mapping):
-        return {
-            int(index): getattr(self._vg.XUSB_BUTTON, config_store.BUTTON_NAME_MAP[name])
-            for index, name in mapping.items()
+        self.all_buttons = {
+            getattr(self._vg.XUSB_BUTTON, config_store.BUTTON_NAME_MAP[name]) for name in mapped_names
         }
 
-    def _build_hat_map(self, mapping):
-        result = {}
-        for direction, name in mapping.items():
-            x_str, y_str = direction.split(",")
-            result[(int(x_str), int(y_str))] = getattr(self._vg.XUSB_BUTTON, config_store.BUTTON_NAME_MAP[name])
-        return result
-
     def update(self, left_state, right_state):
-        lx = apply_deadzone(safe_axis(left_state["axes"], self.config["stick_x_axis"]), self.config["stick_deadzone"])
-        ly = apply_deadzone(safe_axis(left_state["axes"], self.config["stick_y_axis"]), self.config["stick_deadzone"])
-        rx = apply_deadzone(safe_axis(right_state["axes"], self.config["stick_x_axis"]), self.config["stick_deadzone"])
-        ry = apply_deadzone(safe_axis(right_state["axes"], self.config["stick_y_axis"]), self.config["stick_deadzone"])
-        if self.config["invert_y_left"]:
-            ly = -ly
-        if self.config["invert_y_right"]:
-            ry = -ry
+        vs = compute_virtual_state(left_state, right_state, self.config)
 
-        self.gamepad.left_joystick_float(x_value_float=lx, y_value_float=ly)
-        self.gamepad.right_joystick_float(x_value_float=rx, y_value_float=ry)
+        self.gamepad.left_joystick_float(x_value_float=vs["lx"], y_value_float=vs["ly"])
+        self.gamepad.right_joystick_float(x_value_float=vs["rx"], y_value_float=vs["ry"])
+        self.gamepad.left_trigger_float(value_float=vs["lt"])
+        self.gamepad.right_trigger_float(value_float=vs["rt"])
 
-        trig_index = self.config["trigger_button"]
-        self.gamepad.left_trigger_float(value_float=1.0 if safe_button(left_state["buttons"], trig_index) else 0.0)
-        self.gamepad.right_trigger_float(value_float=1.0 if safe_button(right_state["buttons"], trig_index) else 0.0)
-
-        active = set()
-        self._active_buttons(left_state, self.left_button_map, self.left_hat_map, active)
-        self._active_buttons(right_state, self.right_button_map, self.right_hat_map, active)
+        active_vg = {
+            getattr(self._vg.XUSB_BUTTON, config_store.BUTTON_NAME_MAP[name]) for name in vs["active_buttons"]
+        }
         for vg_button in self.all_buttons:
-            if vg_button in active:
+            if vg_button in active_vg:
                 self.gamepad.press_button(button=vg_button)
             else:
                 self.gamepad.release_button(button=vg_button)
 
         self.gamepad.update()
-
-    @staticmethod
-    def _active_buttons(state, button_map, hat_map, active):
-        for index, vg_button in button_map.items():
-            if safe_button(state["buttons"], index):
-                active.add(vg_button)
-        for direction, vg_button in hat_map.items():
-            if direction == state["hat"]:
-                active.add(vg_button)
 
     def close(self):
         self.gamepad.reset()

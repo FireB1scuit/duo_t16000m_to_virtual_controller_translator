@@ -23,7 +23,7 @@ import time
 import pygame
 
 import config_store
-from stick_engine import StickManager, Ticker, apply_deadzone, safe_axis, safe_button
+from stick_engine import StickManager, Ticker, compute_virtual_state
 
 
 def parse_args(argv):
@@ -47,19 +47,13 @@ def run_test_mode(manager):
     ticker = Ticker(manager.config["poll_hz"])
     while True:
         snap = manager.get_snapshot()
-        left, right = snap["left"], snap["right"]
-        cfg = manager.config
-        lx = apply_deadzone(safe_axis(left["axes"], cfg["stick_x_axis"]), cfg["stick_deadzone"])
-        ly = apply_deadzone(safe_axis(left["axes"], cfg["stick_y_axis"]), cfg["stick_deadzone"])
-        rx = apply_deadzone(safe_axis(right["axes"], cfg["stick_x_axis"]), cfg["stick_deadzone"])
-        ry = apply_deadzone(safe_axis(right["axes"], cfg["stick_y_axis"]), cfg["stick_deadzone"])
-        if cfg["invert_y_left"]:
-            ly = -ly
-        if cfg["invert_y_right"]:
-            ry = -ry
-        lt = safe_button(left["buttons"], cfg["trigger_button"])
-        rt = safe_button(right["buttons"], cfg["trigger_button"])
-        print(f"L=({lx:+.2f},{ly:+.2f}) trig={lt}   R=({rx:+.2f},{ry:+.2f}) trig={rt}", end="\r")
+        vs = compute_virtual_state(snap["left"], snap["right"], manager.config)
+        buttons = ",".join(sorted(vs["active_buttons"])) or "none"
+        print(
+            f"L=({vs['lx']:+.2f},{vs['ly']:+.2f}) LT={vs['lt']:.0f}   "
+            f"R=({vs['rx']:+.2f},{vs['ry']:+.2f}) RT={vs['rt']:.0f}   buttons={buttons}",
+            end="\r",
+        )
         ticker.wait()
 
 

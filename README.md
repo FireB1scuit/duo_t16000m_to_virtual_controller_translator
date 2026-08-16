@@ -25,7 +25,7 @@
 ### Using the app
 
 - **Control** — shows connection status, lets you pick the active mapping, and has the Start/Stop button that turns the virtual Xbox 360 controller on and off.
-- **Debug** — live raw axis/button/hat values plus the processed stick x/y and trigger state for both sticks, useful for confirming your hardware's indices.
+- **Debug** — a live Xbox 360 controller schematic (ABXY in their real colors, D-pad, bumpers/triggers, sticks, Back/Guide/Start) that lights up as you press things, so you can see exactly what's reaching the virtual controller. Below it, the raw per-stick axis/button/hat values plus each pressed button's mapped target (e.g. `1→B`), useful for confirming your hardware's indices.
 - **Calibration** — both T.16000M units report identical hardware IDs with no serial, so left/right is determined once by wiggling the left stick; the result is cached so this normally only runs the first time. If you swap which stick is in which USB port, use **Recalibrate** here.
 - **Configs** — browse the built-in **Default** mapping (read-only) and any custom mappings you've made. **New from Default** clones it into an editable copy; the editor lets you point-and-click a target Xbox button for every stick button and hat direction, plus axis indices, deadzone, poll rate, and Y-inversion — no JSON editing needed. **Set as Active** switches which mapping the Control tab's virtual controller uses.
 
