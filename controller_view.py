@@ -37,21 +37,21 @@ CANVAS_BG = "#FFFFFF"
 
 # (shape, x1, y1, x2, y2) read off the native 1024x559 source image.
 _NATIVE_GEOMETRY = {
-    "LT": ("rect", 294, 60, 348, 113),
-    "RT": ("rect", 663, 60, 717, 113),
-    "LEFT_SHOULDER": ("rect", 250, 113, 390, 148),
-    "RIGHT_SHOULDER": ("rect", 630, 113, 770, 148),
+    "LT": ("rect", 305, 67, 360, 110),
+    "RT": ("rect", 660, 67, 718, 110),
+    "LEFT_SHOULDER": ("rect", 255, 100, 390, 145),
+    "RIGHT_SHOULDER": ("rect", 634, 100, 769, 145),
     "Y": ("oval", 672, 165, 718, 211),
-    "X": ("oval", 615, 215, 657, 257),
-    "B": ("oval", 715, 213, 759, 257),
-    "A": ("oval", 672, 262, 718, 307),
+    "X": ("oval", 623, 214, 669, 260),
+    "B": ("oval", 721, 214, 768, 260),
+    "A": ("oval", 672, 262, 718, 308),
     "GUIDE": ("oval", 467, 191, 555, 279),
-    "BACK": ("oval", 417, 210, 461, 254),
-    "START": ("oval", 562, 210, 606, 254),
-    "DPAD_UP": ("oval", 389, 289, 421, 321),
-    "DPAD_DOWN": ("oval", 389, 374, 421, 406),
-    "DPAD_LEFT": ("oval", 347, 329, 379, 361),
-    "DPAD_RIGHT": ("oval", 434, 329, 466, 361),
+    "BACK": ("oval", 426, 224, 462, 254),
+    "START": ("oval", 562, 224, 598, 254),
+    "DPAD_UP": ("oval", 400, 287, 432, 319),
+    "DPAD_DOWN": ("oval", 400, 371, 432, 403),
+    "DPAD_LEFT": ("oval", 358, 329, 390, 361),
+    "DPAD_RIGHT": ("oval", 442, 329, 474, 361),
 }
 
 # (cx, cy, radius) read off the same native image.
@@ -90,7 +90,7 @@ class ControllerSchematic(tk.Canvas):
             self._sticks[side] = self._make_stick(self._s(cx), self._s(cy), self._s(r))
 
     def _make_stick(self, cx, cy, radius):
-        dot_r = radius * 0.28
+        dot_r = radius * 0.28 * 2.5
         dot = self.create_oval(cx - dot_r, cy - dot_r, cx + dot_r, cy + dot_r,
                                 fill=CANVAS_BG, outline=IDLE_OUTLINE, width=2)
         return {"dot": dot, "center": (cx, cy), "travel": radius - dot_r - 4, "dot_r": dot_r}
