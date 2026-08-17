@@ -1,13 +1,16 @@
 """
 Windows GUI for the T.16000M -> virtual Xbox 360 controller translator.
 
-Three tabs:
+Left half is a tabbed panel:
   - Control: connect the sticks, pick which config is active, start/stop
     the virtual controller, and re-run left/right calibration if you swap
     USB ports.
-  - Debug: live raw + processed axis/button/hat values for both sticks.
   - Configs: browse the read-only Default mapping and any custom mappings,
     and edit custom ones with a point-and-click button/hat mapping table.
+
+Right half is always the Debug panel: live raw + processed axis/button/hat
+values for both sticks, stacked vertically (schematic on top, left stick
+below it, right stick below that).
 
 Built on config_store.py / stick_engine.py, which are also used by the
 plain CLI in main.py.
@@ -60,8 +63,8 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("820x600")
-        self.minsize(700, 500)
+        self.geometry("1300x750")
+        self.minsize(1150, 650)
 
         pygame.init()
         self.manager = StickManager()
@@ -81,20 +84,27 @@ class App(tk.Tk):
 
     # ------------------------------------------------------------ layout --
     def _build_ui(self):
-        notebook = ttk.Notebook(self)
-        notebook.pack(fill="both", expand=True)
+        panes = ttk.PanedWindow(self, orient="horizontal")
+        panes.pack(fill="both", expand=True)
+
+        notebook = ttk.Notebook(panes)
+        self.debug_tab = ttk.Frame(panes, padding=16)
+        panes.add(notebook, weight=1)
+        panes.add(self.debug_tab, weight=1)
 
         self.control_tab = ttk.Frame(notebook, padding=16)
-        self.debug_tab = ttk.Frame(notebook, padding=16)
         self.configs_tab = ttk.Frame(notebook, padding=16)
 
         notebook.add(self.control_tab, text="Control")
-        notebook.add(self.debug_tab, text="Debug")
         notebook.add(self.configs_tab, text="Configs")
 
         self._build_control_tab()
         self._build_debug_tab()
         self._build_configs_tab()
+
+        # Give the debug side enough width for the schematic up front instead
+        # of the 50/50 split the PanedWindow would otherwise start with.
+        self.after_idle(lambda: panes.sashpos(0, 480))
 
     # ---------------------------------------------------------- control --
     def _build_control_tab(self):
@@ -130,7 +140,7 @@ class App(tk.Tk):
                 "wiggling the left stick once. That result is cached, so this normally only "
                 "runs the first time or after you change USB ports."
             ),
-            wraplength=680,
+            wraplength=460,
             justify="left",
         ).pack(anchor="w", pady=(0, 12))
 
@@ -167,16 +177,16 @@ class App(tk.Tk):
     # ------------------------------------------------------------ debug --
     def _build_debug_tab(self):
         tab = self.debug_tab
-        tab.columnconfigure(0, weight=1)
-        tab.columnconfigure(1, weight=1)
 
-        self.schematic = ControllerSchematic(tab)
-        self.schematic.grid(row=0, column=0, columnspan=2, pady=(0, 12))
+        canvas_wrap = ttk.Frame(tab)
+        canvas_wrap.pack(fill="x", pady=(0, 12))
+        self.schematic = ControllerSchematic(canvas_wrap)
+        self.schematic.pack()
 
         self.debug_widgets = {}
-        for side, column in (("left", 0), ("right", 1)):
+        for side in ("left", "right"):
             frame = ttk.LabelFrame(tab, text=side.capitalize(), padding=12)
-            frame.grid(row=1, column=column, sticky="nsew", padx=8)
+            frame.pack(fill="x", pady=(0, 12))
 
             name_label = ttk.Label(frame, text="Not connected", font=("Segoe UI", 9, "bold"))
             name_label.pack(anchor="w")
