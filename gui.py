@@ -1,11 +1,11 @@
 """
 Windows GUI for the T.16000M -> virtual Xbox 360 controller translator.
 
-Four tabs:
+Three tabs:
   - Control: connect the sticks, pick which config is active, start/stop
-    the virtual controller.
+    the virtual controller, and re-run left/right calibration if you swap
+    USB ports.
   - Debug: live raw + processed axis/button/hat values for both sticks.
-  - Calibration: re-run the left/right identification if you swap USB ports.
   - Configs: browse the read-only Default mapping and any custom mappings,
     and edit custom ones with a point-and-click button/hat mapping table.
 
@@ -86,17 +86,14 @@ class App(tk.Tk):
 
         self.control_tab = ttk.Frame(notebook, padding=16)
         self.debug_tab = ttk.Frame(notebook, padding=16)
-        self.calibration_tab = ttk.Frame(notebook, padding=16)
         self.configs_tab = ttk.Frame(notebook, padding=16)
 
         notebook.add(self.control_tab, text="Control")
         notebook.add(self.debug_tab, text="Debug")
-        notebook.add(self.calibration_tab, text="Calibration")
         notebook.add(self.configs_tab, text="Configs")
 
         self._build_control_tab()
         self._build_debug_tab()
-        self._build_calibration_tab()
         self._build_configs_tab()
 
     # ---------------------------------------------------------- control --
@@ -119,10 +116,33 @@ class App(tk.Tk):
         self.active_config_combo.bind("<<ComboboxSelected>>", lambda e: self._load_active_config(persist=True))
 
         run = ttk.LabelFrame(tab, text="Virtual controller", padding=12)
-        run.pack(fill="x")
+        run.pack(fill="x", pady=(0, 12))
         ttk.Label(run, textvariable=self.controller_status).pack(side="left")
         self.toggle_button = ttk.Button(run, text="Start", command=self._toggle_controller, state="disabled")
         self.toggle_button.pack(side="right")
+
+        cal = ttk.LabelFrame(tab, text="Calibration", padding=12)
+        cal.pack(fill="x")
+        ttk.Label(
+            cal,
+            text=(
+                "Both sticks report identical hardware IDs, so left/right is determined by "
+                "wiggling the left stick once. That result is cached, so this normally only "
+                "runs the first time or after you change USB ports."
+            ),
+            wraplength=680,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 12))
+
+        self.calibration_label = ttk.Label(cal, textvariable=self.calibration_status, font=("Segoe UI", 10))
+        self.calibration_label.pack(anchor="w", pady=(0, 12))
+
+        row = ttk.Frame(cal)
+        row.pack(anchor="w")
+        self.recalibrate_button = ttk.Button(row, text="Recalibrate", command=self._recalibrate)
+        self.recalibrate_button.pack(side="left")
+        self.abort_button = ttk.Button(row, text="Cancel", command=self._abort_calibration.set, state="disabled")
+        self.abort_button.pack(side="left", padx=(8, 0))
 
     def _toggle_controller(self):
         if self.manager.gamepad_active:
@@ -222,30 +242,6 @@ class App(tk.Tk):
             widgets["hat"].config(text=hat_text)
 
         self.after(50, self._refresh_debug)
-
-    # ------------------------------------------------------ calibration --
-    def _build_calibration_tab(self):
-        tab = self.calibration_tab
-        ttk.Label(
-            tab,
-            text=(
-                "Both sticks report identical hardware IDs, so left/right is determined by "
-                "wiggling the left stick once. That result is cached, so this normally only "
-                "runs the first time or after you change USB ports."
-            ),
-            wraplength=680,
-            justify="left",
-        ).pack(anchor="w", pady=(0, 12))
-
-        self.calibration_label = ttk.Label(tab, textvariable=self.calibration_status, font=("Segoe UI", 10))
-        self.calibration_label.pack(anchor="w", pady=(0, 12))
-
-        row = ttk.Frame(tab)
-        row.pack(anchor="w")
-        self.recalibrate_button = ttk.Button(row, text="Recalibrate", command=self._recalibrate)
-        self.recalibrate_button.pack(side="left")
-        self.abort_button = ttk.Button(row, text="Cancel", command=self._abort_calibration.set, state="disabled")
-        self.abort_button.pack(side="left", padx=(8, 0))
 
     def _recalibrate(self):
         self._connect(recalibrate=True)
