@@ -37,27 +37,27 @@ CANVAS_BG = "#FFFFFF"
 
 # (shape, x1, y1, x2, y2) read off the native 1024x559 source image.
 _NATIVE_GEOMETRY = {
-    "LT": ("rect", 290, 55, 345, 115),
-    "RT": ("rect", 660, 55, 715, 115),
-    "LEFT_SHOULDER": ("rect", 250, 115, 390, 150),
-    "RIGHT_SHOULDER": ("rect", 630, 115, 770, 150),
-    "Y": ("oval", 661, 160, 721, 220),
-    "X": ("oval", 605, 210, 665, 270),
-    "B": ("oval", 717, 210, 777, 270),
-    "A": ("oval", 661, 260, 721, 320),
-    "GUIDE": ("oval", 471, 194, 551, 274),
-    "BACK": ("oval", 410, 213, 450, 253),
-    "START": ("oval", 562, 215, 602, 255),
-    "DPAD_UP": ("oval", 395, 294, 427, 326),
-    "DPAD_DOWN": ("oval", 395, 368, 427, 400),
-    "DPAD_LEFT": ("oval", 361, 331, 393, 363),
-    "DPAD_RIGHT": ("oval", 429, 331, 461, 363),
+    "LT": ("rect", 294, 60, 348, 113),
+    "RT": ("rect", 663, 60, 717, 113),
+    "LEFT_SHOULDER": ("rect", 250, 113, 390, 148),
+    "RIGHT_SHOULDER": ("rect", 630, 113, 770, 148),
+    "Y": ("oval", 672, 165, 718, 211),
+    "X": ("oval", 615, 215, 657, 257),
+    "B": ("oval", 715, 213, 759, 257),
+    "A": ("oval", 672, 262, 718, 307),
+    "GUIDE": ("oval", 467, 191, 555, 279),
+    "BACK": ("oval", 417, 210, 461, 254),
+    "START": ("oval", 562, 210, 606, 254),
+    "DPAD_UP": ("oval", 389, 289, 421, 321),
+    "DPAD_DOWN": ("oval", 389, 374, 421, 406),
+    "DPAD_LEFT": ("oval", 347, 329, 379, 361),
+    "DPAD_RIGHT": ("oval", 434, 329, 466, 361),
 }
 
 # (cx, cy, radius) read off the same native image.
 _STICKS_NATIVE = {
-    "left": (331, 248, 49),
-    "right": (590, 355, 50),
+    "left": (328, 236, 40),
+    "right": (598, 345, 40),
 }
 
 
