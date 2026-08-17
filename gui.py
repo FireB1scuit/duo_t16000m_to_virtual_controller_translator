@@ -1,13 +1,16 @@
 """
 Windows GUI for the T.16000M -> virtual Xbox 360 controller translator.
 
-Three tabs:
+Two tabs:
   - Control: connect the sticks, pick which config is active, start/stop
     the virtual controller, and re-run left/right calibration if you swap
     USB ports.
-  - Debug: live raw + processed axis/button/hat values for both sticks.
-  - Configs: browse the read-only Default mapping and any custom mappings,
-    and edit custom ones with a point-and-click button/hat mapping table.
+  - Configs & Debug: browse the read-only Default mapping and any custom
+    mappings and edit custom ones with a point-and-click button/hat mapping
+    table on the left, while the right side shows live debug info (the
+    interactive controller schematic, then left-stick and right-stick raw +
+    processed values) so you can see the effect of mapping changes as you
+    make them.
 
 Built on config_store.py / stick_engine.py, which are also used by the
 plain CLI in main.py.
@@ -60,8 +63,8 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("820x600")
-        self.minsize(700, 500)
+        self.geometry("1300x700")
+        self.minsize(1000, 550)
 
         pygame.init()
         self.manager = StickManager()
@@ -85,15 +88,12 @@ class App(tk.Tk):
         notebook.pack(fill="both", expand=True)
 
         self.control_tab = ttk.Frame(notebook, padding=16)
-        self.debug_tab = ttk.Frame(notebook, padding=16)
         self.configs_tab = ttk.Frame(notebook, padding=16)
 
         notebook.add(self.control_tab, text="Control")
-        notebook.add(self.debug_tab, text="Debug")
-        notebook.add(self.configs_tab, text="Configs")
+        notebook.add(self.configs_tab, text="Configs & Debug")
 
         self._build_control_tab()
-        self._build_debug_tab()
         self._build_configs_tab()
 
     # ---------------------------------------------------------- control --
@@ -165,18 +165,14 @@ class App(tk.Tk):
         self.toggle_button.config(text="Start")
 
     # ------------------------------------------------------------ debug --
-    def _build_debug_tab(self):
-        tab = self.debug_tab
-        tab.columnconfigure(0, weight=1)
-        tab.columnconfigure(1, weight=1)
-
-        self.schematic = ControllerSchematic(tab)
-        self.schematic.grid(row=0, column=0, columnspan=2, pady=(0, 12))
+    def _build_debug_panel(self, parent):
+        self.schematic = ControllerSchematic(parent)
+        self.schematic.pack(pady=(0, 12))
 
         self.debug_widgets = {}
-        for side, column in (("left", 0), ("right", 1)):
-            frame = ttk.LabelFrame(tab, text=side.capitalize(), padding=12)
-            frame.grid(row=1, column=column, sticky="nsew", padx=8)
+        for side in ("left", "right"):
+            frame = ttk.LabelFrame(parent, text=side.capitalize(), padding=12)
+            frame.pack(fill="x", pady=(0, 12))
 
             name_label = ttk.Label(frame, text="Not connected", font=("Segoe UI", 9, "bold"))
             name_label.pack(anchor="w")
@@ -250,6 +246,7 @@ class App(tk.Tk):
     def _build_configs_tab(self):
         tab = self.configs_tab
         tab.columnconfigure(1, weight=1)
+        tab.columnconfigure(2, weight=1)
         tab.rowconfigure(0, weight=1)
 
         left = ttk.Frame(tab)
@@ -267,10 +264,14 @@ class App(tk.Tk):
         self.delete_config_button.pack(fill="x", pady=(4, 0))
         ttk.Button(btns, text="Set as Active", command=self._set_active_from_list).pack(fill="x", pady=(4, 0))
 
-        right = ttk.Frame(tab)
-        right.grid(row=0, column=1, sticky="nsew")
-        self.editor = MappingEditor(right, on_save_as=self._save_as_new_config, on_saved=self._on_config_saved)
+        middle = ttk.Frame(tab)
+        middle.grid(row=0, column=1, sticky="nsew", padx=(0, 12))
+        self.editor = MappingEditor(middle, on_save_as=self._save_as_new_config, on_saved=self._on_config_saved)
         self.editor.pack(fill="both", expand=True)
+
+        debug_panel = ttk.Frame(tab)
+        debug_panel.grid(row=0, column=2, sticky="nsew")
+        self._build_debug_panel(debug_panel)
 
         self._refresh_config_list(select=config_store.get_last_active_config())
 
