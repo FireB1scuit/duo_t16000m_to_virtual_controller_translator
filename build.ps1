@@ -23,6 +23,7 @@ if (-not $vgamepadWinDir) {
 
 pyinstaller --onefile --noconsole --name "HOSAS Translator" --clean `
     --add-data "$vgamepadWinDir;vgamepad\win" `
+    --add-data "assets\xbox_360_schematic_debug.png;assets" `
     gui.py
 
 Write-Host ""
