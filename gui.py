@@ -46,7 +46,14 @@ class ScrollableFrame(ttk.Frame):
         def on_mousewheel(event):
             canvas.yview_scroll(-1 * (event.delta // 120), "units")
 
-        canvas.bind_all("<MouseWheel>", on_mousewheel, add="+")
+        def bind_wheel(_event):
+            canvas.bind_all("<MouseWheel>", on_mousewheel)
+
+        def unbind_wheel(_event):
+            canvas.unbind_all("<MouseWheel>")
+
+        canvas.bind("<Enter>", bind_wheel)
+        canvas.bind("<Leave>", unbind_wheel)
 
 
 class App(tk.Tk):
