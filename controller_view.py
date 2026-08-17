@@ -37,6 +37,20 @@ def _rounded_rect_points(x1, y1, x2, y2, r):
     ]
 
 
+# Right-half body profile as (dx from CX, y) pairs, traced from the shallow
+# dip at top-center, out across the shoulder, down through a gentle waist,
+# and out again into the lower grip lobe. Mirroring this across CX and
+# closing through BOTTOM_CENTER gives the whole silhouette as one smoothed
+# polygon - this is what actually reads as "Xbox 360 controller" instead of
+# a blob, so keep the widen/narrow/widen rhythm if these ever get tuned.
+BODY_RIGHT_HALF = [
+    (18, 45), (95, 50), (160, 78), (210, 135),
+    (198, 195), (168, 235), (178, 262), (213, 305),
+    (190, 345), (108, 368), (40, 360),
+]
+BODY_BOTTOM_CENTER = (0, 345)
+
+
 class ControllerSchematic(tk.Canvas):
     """set_active(active_buttons, lt, rt, lx, ly, rx, ry) redraws in place -
     call it on every debug refresh tick."""
@@ -62,78 +76,73 @@ class ControllerSchematic(tk.Canvas):
                 cx, cy, text=label, fill=IDLE_TEXT, font=("Segoe UI", font_size, "bold")
             )
 
-    # The body silhouette is a union of five overlapping primitives: two
-    # shoulder bulges (which house the left stick/d-pad and face buttons,
-    # like the real controller's rounded "wings"), two lower grip lobes,
-    # and a narrower waist connecting them. Drawing an oversized copy of
-    # the whole union first in the outline color, then the true-sized copy
-    # on top in the body color, fakes a clean single silhouette + rim
-    # without needing exact polygon boolean ops.
-    _SHOULDER_R = 95
-    _GRIP_R = 88
-    _SHOULDER_CENTER_Y = 150
-    _GRIP_CENTER_Y = 300
-
-    def _body_primitives(self, grow=0):
-        sr, gr = self._SHOULDER_R + grow, self._GRIP_R + grow
-        sy, gy = self._SHOULDER_CENTER_Y, self._GRIP_CENTER_Y
-        return [
-            ("oval", CX - 145 - sr, sy - sr, CX - 145 + sr, sy + sr),
-            ("oval", CX + 145 - sr, sy - sr, CX + 145 + sr, sy + sr),
-            ("oval", CX - 140 - gr, gy - gr, CX - 140 + gr, gy + gr),
-            ("oval", CX + 140 - gr, gy - gr, CX + 140 + gr, gy + gr),
-            ("rrect", CX - 118 - grow, 132 - grow, CX + 118 + grow, 318 + grow, 56 + grow),
-        ]
-
-    def _draw_body_layer(self, grow, color):
-        for kind, x1, y1, x2, y2, *rest in self._body_primitives(grow):
-            if kind == "oval":
-                self.create_oval(x1, y1, x2, y2, fill=color, outline="")
-            else:
-                self.create_polygon(_rounded_rect_points(x1, y1, x2, y2, rest[0]), smooth=True, fill=color, outline="")
+    def _body_outline_points(self):
+        left_half = [(-dx, y) for dx, y in reversed(BODY_RIGHT_HALF)]
+        points = []
+        for dx, y in BODY_RIGHT_HALF:
+            points += [CX + dx, y]
+        points += [CX + BODY_BOTTOM_CENTER[0], BODY_BOTTOM_CENTER[1]]
+        for dx, y in left_half:
+            points += [CX + dx, y]
+        return points
 
     def _draw_static(self):
+        body_pts = self._body_outline_points()
+
         # Soft ground shadow, peeking out from under the body's lower edge.
-        self.create_oval(CX - 220, 130, CX + 220, 400, fill="#000000", outline="", stipple="gray25")
+        self.create_oval(CX - 220, 140, CX + 220, 400, fill="#000000", outline="", stipple="gray25")
 
-        self._draw_body_layer(4, BODY_OUTLINE)
-        self._draw_body_layer(0, BODY_FILL)
-        # Glossy highlight arcs on the two shoulder bulges for a moulded look.
-        self.create_arc(CX - 145 - 80, self._SHOULDER_CENTER_Y - 80, CX - 145 + 80, self._SHOULDER_CENTER_Y + 80,
-                         start=70, extent=110, style="arc", outline=BODY_RIM, width=2)
-        self.create_arc(CX + 145 - 80, self._SHOULDER_CENTER_Y - 80, CX + 145 + 80, self._SHOULDER_CENTER_Y + 80,
-                         start=70, extent=110, style="arc", outline=BODY_RIM, width=2)
+        self.create_polygon(body_pts, smooth=True, splinesteps=24, fill=BODY_OUTLINE, outline="")
+        inset_pts = self._offset_polygon(body_pts, -4)
+        self.create_polygon(inset_pts, smooth=True, splinesteps=24, fill=BODY_FILL, outline="")
+        self.create_line(inset_pts + inset_pts[:2], smooth=True, splinesteps=24, fill=BODY_RIM, width=1)
 
-        # Triggers - poke above the body's top edge like real trigger caps.
-        self._button("LT", CX - 178, 14, CX - 100, 50, "LT", radius=10)
-        self._button("RT", CX + 100, 14, CX + 178, 50, "RT", radius=10)
-        # Shoulder buttons, set into the top corners of the body.
-        self._button("LEFT_SHOULDER", CX - 185, 62, CX - 100, 90, "LB", radius=8)
-        self._button("RIGHT_SHOULDER", CX + 100, 62, CX + 185, 90, "RB", radius=8)
+        # Shoulder bumpers, set flush into the top-left/top-right curve.
+        self._button("LEFT_SHOULDER", CX - 178, 55, CX - 96, 82, "LB", radius=10)
+        self._button("RIGHT_SHOULDER", CX + 96, 55, CX + 178, 82, "RB", radius=10)
+        # Triggers - separate caps that poke above the body's top edge.
+        self._button("LT", CX - 150, 12, CX - 80, 44, "LT", radius=10)
+        self._button("RT", CX + 80, 12, CX + 150, 44, "RT", radius=10)
 
         # Sticks (ring is static context, dot moves + recolors on click).
-        self._sticks["left"] = self._make_stick(CX - 140, 138, 36)
-        self._sticks["right"] = self._make_stick(CX + 65, 268, 36)
+        self._sticks["left"] = self._make_stick(CX - 160, 150, 34)
+        self._sticks["right"] = self._make_stick(CX + 65, 270, 34)
 
         # D-pad - four flush arms forming a plus, plus a static pivot cap.
-        self._draw_dpad(CX - 140, 280)
+        self._draw_dpad(CX - 150, 275)
 
         # Face buttons, diamond-arranged to match the real layout.
-        fbx, fby = CX + 150, 155
-        self._button("Y", fbx - 19, fby - 61, fbx + 19, fby - 23, "Y", shape="oval")
-        self._button("X", fbx - 57, fby - 19, fbx - 19, fby + 19, "X", shape="oval")
-        self._button("B", fbx + 19, fby - 19, fbx + 57, fby + 19, "B", shape="oval")
-        self._button("A", fbx - 19, fby + 23, fbx + 19, fby + 61, "A", shape="oval")
-        for key in ("Y", "X", "B", "A"):
-            self.itemconfig(self._shapes[key], fill=IDLE_FILL)
+        fbx, fby = CX + 145, 140
+        self._button("Y", fbx - 18, fby - 58, fbx + 18, fby - 22, "Y", shape="oval")
+        self._button("X", fbx - 54, fby - 18, fbx - 18, fby + 18, "X", shape="oval")
+        self._button("B", fbx + 18, fby - 18, fbx + 54, fby + 18, "B", shape="oval")
+        self._button("A", fbx - 18, fby + 22, fbx + 18, fby + 58, "A", shape="oval")
 
-        # Back / Guide / Start, centered on the body between stick and pad.
-        self._button("BACK", CX - 55, 200, CX - 32, 218, "BK", shape="oval", font_size=6)
-        self._button("GUIDE", CX - 22, 190, CX + 22, 230, "GD", shape="oval")
-        self._button("START", CX + 32, 200, CX + 55, 218, "ST", shape="oval", font_size=6)
+        # Back / Guide / Start, centered on the body's waist. The guide
+        # button is the big one, flanked by two small pill-shaped buttons.
+        self._button("GUIDE", CX - 27, 205, CX + 27, 259, "XBOX", shape="oval", font_size=7)
+        self._button("BACK", CX - 62, 212, CX - 36, 228, "◁", shape="oval", font_size=7)
+        self._button("START", CX + 36, 212, CX + 62, 228, "▷", shape="oval", font_size=7)
+
+    @staticmethod
+    def _offset_polygon(points, amount):
+        """Nudge every (x, y) pair toward the shape's centroid by `amount`
+        px (negative shrinks), used to draw a slightly-smaller rim shape
+        for a beveled look."""
+        xs = points[0::2]
+        ys = points[1::2]
+        cx, cy = sum(xs) / len(xs), sum(ys) / len(ys)
+        out = []
+        for x, y in zip(xs, ys):
+            dx, dy = x - cx, y - cy
+            dist = max((dx * dx + dy * dy) ** 0.5, 1e-6)
+            out += [x + dx / dist * amount, y + dy / dist * amount]
+        return out
 
     def _draw_dpad(self, cx, cy):
         half_thick, extent = 11, 33
+        self.create_oval(cx - extent - 8, cy - extent - 8, cx + extent + 8, cy + extent + 8,
+                          fill="#2A2D33", outline=IDLE_OUTLINE, width=2)
         arms = {
             "DPAD_UP": (cx - half_thick, cy - extent, cx + half_thick, cy - half_thick, "▲"),
             "DPAD_DOWN": (cx - half_thick, cy + half_thick, cx + half_thick, cy + extent, "▼"),
@@ -151,18 +160,16 @@ class ControllerSchematic(tk.Canvas):
                                fill=IDLE_OUTLINE, outline="")
 
     def _make_stick(self, cx, cy, radius):
-        socket = self.create_oval(cx - radius - 4, cy - radius - 4, cx + radius + 4, cy + radius + 4,
-                                   fill=BODY_OUTLINE, outline="")
-        ring = self.create_oval(cx - radius, cy - radius, cx + radius, cy + radius,
-                                 fill="#2A2D33", outline=IDLE_OUTLINE, width=2)
+        socket = self.create_oval(cx - radius - 6, cy - radius - 6, cx + radius + 6, cy + radius + 6,
+                                   fill="#2A2D33", outline=IDLE_OUTLINE, width=2)
         dot_r = 15
         dot = self.create_oval(cx - dot_r, cy - dot_r, cx + dot_r, cy + dot_r,
                                 fill=IDLE_FILL, outline=IDLE_OUTLINE, width=2)
         highlight = self.create_oval(cx - dot_r + 4, cy - dot_r + 4, cx - dot_r + 10, cy - dot_r + 10,
                                       fill="#585C66", outline="")
         return {
-            "socket": socket, "ring": ring, "dot": dot, "highlight": highlight,
-            "center": (cx, cy), "travel": radius - dot_r, "dot_r": dot_r,
+            "socket": socket, "dot": dot, "highlight": highlight,
+            "center": (cx, cy), "travel": radius - dot_r + 6, "dot_r": dot_r,
         }
 
     # ------------------------------------------------------------ update --
