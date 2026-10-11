@@ -30,12 +30,6 @@ DEFAULT_CONFIG = {
     "trigger_button": 0,
     "stick_deadzone": 0.05,
     "poll_hz": 125,
-    # Each stick's throttle slider scales that stick's output: full at one
-    # end of its travel, throttle_min_sensitivity at the other.
-    "throttle_sensitivity": True,
-    "throttle_axis": 3,
-    "throttle_invert": False,
-    "throttle_min_sensitivity": 0.2,
     "left_buttons": {
         "1": "B",
         "2": "Y",
@@ -82,41 +76,9 @@ DEFAULT_CONFIG = {
         "-1,0": "X",
         "-1,-1": "RIGHT_THUMB",
     },
-    # Single-stick mode (one stick plugged in, see MODE_SINGLE): the right
-    # stick's mapping with the stick-top buttons changed, since one hand has
-    # to reach both triggers. The trigger itself is always RT.
-    "single_buttons": {
-        "1": "B",
-        "2": "LEFT_TRIGGER",
-        "3": "A",
-        "5": "Y",
-        "6": "GUIDE",
-        "7": "X",
-        "8": "A",
-        "9": "B",
-        "10": "BACK",
-        "11": "DPAD_UP",
-        "12": "START",
-        "13": "DPAD_RIGHT",
-        "14": "DPAD_DOWN",
-        "15": "DPAD_LEFT",
-    },
-    "single_hat": {
-        "0,1": "Y",
-        "0,-1": "A",
-        "1,0": "B",
-        "-1,0": "X",
-        "-1,-1": "RIGHT_THUMB",
-    },
 }
 
-# Stick-top buttons of single-stick mode, as in DEFAULT_CONFIG: applied over
-# the right stick's mapping for configs saved before the mode existed.
-SINGLE_TOP_BUTTONS = {"1": "B", "2": "LEFT_TRIGGER", "3": "A"}
-
 # Maps the button names used in config files to vgamepad's XUSB_BUTTON enum.
-# None means the Xbox 360 pad has no such button: the name is still a valid
-# target, but only the Switch bridge does anything with it.
 BUTTON_NAME_MAP = {
     "A": "XUSB_GAMEPAD_A",
     "B": "XUSB_GAMEPAD_B",
@@ -133,26 +95,9 @@ BUTTON_NAME_MAP = {
     "BACK": "XUSB_GAMEPAD_BACK",
     "START": "XUSB_GAMEPAD_START",
     "GUIDE": "XUSB_GAMEPAD_GUIDE",
-    "CAPTURE": None,
-    # The analog triggers, pulled fully while held. Not XUSB buttons: see
-    # TRIGGER_TARGETS.
-    "LEFT_TRIGGER": None,
-    "RIGHT_TRIGGER": None,
 }
 
-# Button targets that pull a trigger (the virtual state's "lt"/"rt") instead
-# of pressing a button.
-TRIGGER_TARGETS = {"LEFT_TRIGGER": "lt", "RIGHT_TRIGGER": "rt"}
-
 UNMAPPED = "(unmapped)"
-
-# How the sticks make up the controller, decided by how many are plugged in:
-#   - "duo": two sticks, one per hand - left stick/right stick of the pad.
-#   - "single": one stick is the whole pad. Its axes are the pad's left
-#     stick, its trigger is RT, and its buttons and hat use the config's
-#     single_buttons/single_hat (with Default the hat is the face buttons).
-MODE_DUO = "duo"
-MODE_SINGLE = "single"
 
 # Every non-center direction a hat can report, in a stable display order.
 HAT_DIRECTIONS = [
@@ -167,7 +112,7 @@ HAT_DIRECTIONS = [
 ]
 
 # T.16000M buttons other than the trigger (button 0, which is hardcoded to
-# LT/RT and isn't part of the button mappings) that the hardware
+# LT/RT and isn't part of left_buttons/right_buttons) that the hardware
 # reports. Used to build the editor's button-mapping table.
 MAPPABLE_BUTTON_INDICES = list(range(1, 20))
 
@@ -226,12 +171,6 @@ def load_config(name):
     with open(path, "r") as f:
         config = json.load(f)
     merged = {**DEFAULT_CONFIG, **config}
-    # Saved before single-stick mode existed: base it on this config's own
-    # right stick rather than on Default's.
-    if "single_buttons" not in config:
-        merged["single_buttons"] = {**merged["right_buttons"], **SINGLE_TOP_BUTTONS}
-    if "single_hat" not in config:
-        merged["single_hat"] = dict(merged["right_hat"])
     return merged
 
 
@@ -259,47 +198,32 @@ def _state_path():
     return app_data_dir() / "state.json"
 
 
-def _load_state():
-    try:
-        with open(_state_path(), "r") as f:
-            state = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return {}
-    return state if isinstance(state, dict) else {}
-
-
-def get_setting(key, default=None):
-    """A value remembered between runs (see set_setting)."""
-    return _load_state().get(key, default)
-
-
-def set_setting(key, value):
-    state = _load_state()
-    state[key] = value
-    with open(_state_path(), "w") as f:
-        json.dump(state, f)
-
-
 def get_last_active_config():
-    name = get_setting("active_config", DEFAULT_CONFIG_NAME)
+    path = _state_path()
+    if not path.exists():
+        return DEFAULT_CONFIG_NAME
+    try:
+        with open(path, "r") as f:
+            name = json.load(f).get("active_config", DEFAULT_CONFIG_NAME)
+    except (json.JSONDecodeError, OSError):
+        return DEFAULT_CONFIG_NAME
     return name if name in list_config_names() else DEFAULT_CONFIG_NAME
 
 
 def set_last_active_config(name):
-    set_setting("active_config", name)
+    with open(_state_path(), "w") as f:
+        json.dump({"active_config": name}, f)
 
 
 def validate_config(config):
     missing = [key for key in DEFAULT_CONFIG if key not in config]
     if missing:
         raise ValueError(f"Config is missing keys: {', '.join(missing)}")
-    if not 0.05 <= config["throttle_min_sensitivity"] <= 1:
-        raise ValueError("Lowest throttle sensitivity must be between 0.05 and 1.")
-    for section in ("left_buttons", "right_buttons", "single_buttons"):
+    for section in ("left_buttons", "right_buttons"):
         for name in config[section].values():
             if name not in BUTTON_NAME_MAP:
                 raise ValueError(f"Unknown button name {name!r} in {section}")
-    for section in ("left_hat", "right_hat", "single_hat"):
+    for section in ("left_hat", "right_hat"):
         for name in config[section].values():
             if name not in BUTTON_NAME_MAP:
                 raise ValueError(f"Unknown button name {name!r} in {section}")

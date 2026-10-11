@@ -8,98 +8,20 @@
 - [x] map joystick buttons
 - [x] map joystick hat to arrows and XABY
 - [x] Windows GUI app with debug view, recalibration, and custom mapping profiles
-- [x] runs on Linux too (virtual controller via uinput)
-- [x] throttle slider sets that stick's sensitivity
+- [ ] map throttle button (slider left = mouse sensitivity, slider right = volume)
 - [ ] map extra button on base
 - [ ] map horizontal X rotation for X joystick acceleration
 
 ## Setup guide
 
 1. Install the [ViGEmBus driver](https://github.com/ViGEm/ViGEmBus/releases) — this lets `vgamepad` create a virtual Xbox 360 controller on Windows.
-2. Plug in both T.16000M joysticks (or just one, for single-stick mode — see [One stick or two](#one-stick-or-two)).
+2. Plug in both T.16000M joysticks.
    - If a game also reacts to the physical sticks, you might need HidHide too — see [Optional: hiding the physical sticks from games](#optional-hiding-the-physical-sticks-from-games-hidhide).
 3. Either grab `HOSAS Translator.exe` from a build (see [Building the .exe](#building-the-exe)) and run it, or run from source:
    ```
    pip install -r requirements.txt
    python gui.py
    ```
-
-### Linux (e.g. Raspberry Pi OS)
-
-The same code runs on Linux; `vgamepad` creates the virtual Xbox 360 controller through `uinput` instead of ViGEmBus, so there is no driver to install.
-
-1. Install the dependencies in a virtual environment (Debian-based systems refuse a system-wide `pip install`):
-   ```
-   sudo apt install python3-tk libevdev2
-   python3 -m venv --system-site-packages .venv
-   .venv/bin/pip install -r requirements.txt
-   ```
-2. Let your user create virtual input devices. `/dev/uinput` is root-only by default; this rule opens it to the `input` group (which your user also needs to be in to read the sticks — check with `id`):
-   ```
-   echo 'KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"' | sudo tee /etc/udev/rules.d/99-uinput.rules
-   sudo udevadm control --reload-rules && sudo udevadm trigger /dev/uinput
-   ```
-   Without it the sticks and the Debug panel still work, but **Start** fails with `Permission denied`.
-3. Run it:
-   ```
-   .venv/bin/python gui.py
-   ```
-
-#### Nintendo Switch over Bluetooth (experimental)
-
-[switch_bridge.py](switch_bridge.py) sends the sticks to a Nintendo Switch instead of a local virtual pad: the machine poses as a Bluetooth Pro Controller via [NXBT](https://github.com/Brikwerk/nxbt), using the same mapping configs (face buttons map by position, so Xbox A/B/X/Y press the Switch's B/A/Y/X; LB/RB→L/R, LT/RT→ZL/ZR, Back/Start→−/+, Guide→Home; the extra `CAPTURE` target presses the Switch's Capture button and does nothing on the Xbox pad).
-
-```
-.venv/bin/pip install --no-deps nxbt      # its pinned dbus-python doesn't build on new Pythons; the system python3-dbus is used
-sudo rfkill unblock bluetooth
-sudo env HOME=$HOME .venv/bin/python switch_bridge.py
-```
-
-The first time, open **Controllers → Change Grip/Order** on the Switch; later runs reconnect to the paired Switch on their own. It needs root, and while it runs NXBT restarts the Bluetooth service with its plugins disabled, so other Bluetooth devices on the machine stop working until the service is restarted normally or the machine reboots.
-
-#### Phone portal
-
-[web_portal.py](web_portal.py) is the same Switch bridge with a web page in front of it, so the machine can run headless and be driven from a phone on the same network:
-
-```
-sudo env HOME=$HOME .venv/bin/python web_portal.py      # then open http://<this machine>:8080
-```
-
-- **Nintendo Switch** — Connect/Disconnect the emulated controller, **Pairing mode** for a Switch that doesn't know it yet (open **Controllers → Change Grip/Order** on the Switch), and a picker for which paired Switch to reconnect to when there is more than one.
-- **Sticks** — shows which USB port is Left and which is Right with a live dot per stick. **Swap sides** flips them; **Wiggle to set** makes whichever stick you move the left one. The choice is saved per USB port.
-- **Button mapping** — pick the active mapping and edit custom ones (buttons, hats, Y-inversion, throttle sensitivity); the row for whatever you press on a stick lights up. Changes save as you make them and apply immediately.
-
-Everything is remembered (same files as the GUI), including whether it was connected — so after a restart it reconnects to the Switch by itself. `--port N` / `--host ADDR` change where it listens; `--no-switch` runs it without root or Bluetooth, for editing mappings only. There is no login: anyone on your network can open the page.
-
-To start it at boot, see the comments in [hosas-portal.service](hosas-portal.service). It replaces `switch_bridge.py` — only one of the two can use the Bluetooth adapter at a time.
-
-##### Running headless: turn the desktop off
-
-With the portal started at boot, the machine needs no screen, and the graphical desktop is then just competing with the translator for CPU — on a Raspberry Pi 4 the idle desktop took about half a core, and an open `gui.py` most of another. To boot straight to the console instead:
-
-```
-sudo systemctl set-default multi-user.target
-sudo systemctl stop display-manager        # or reboot
-```
-
-SSH and the portal keep working; nothing is uninstalled. `sudo systemctl set-default graphical.target` and a reboot bring the desktop back.
-
-##### Away from home: fallback Wi-Fi hotspot
-
-The portal needs the phone and this machine on the same network. With no Wi-Fi around, the machine can provide one itself:
-
-```
-sudo ./setup_hotspot.sh "NetworkName" "password"      # password: 8+ characters
-```
-
-That adds a low-priority hotspot to NetworkManager. Whenever a Wi-Fi network the machine already knows is in range it joins that as usual; when none is (checked as it boots), it starts the hotspot instead. Join it from the phone and open **http://10.42.0.1:8080** — the address is always the same on the hotspot.
-
-- The hotspot has no internet, so the phone may warn about it; tell it to stay connected.
-- It only falls back when starting up or after losing Wi-Fi, and it doesn't hop back to the home network by itself — reboot (or `sudo nmcli connection down hosas-hotspot`) once you're home.
-- It runs on 5 GHz to stay clear of the Bluetooth link to the Switch, which shares the same radio. If stick input feels laggy with the phone connected, that sharing is the first thing to suspect.
-- `sudo nmcli connection up hosas-hotspot` forces it on for a test; `sudo nmcli connection delete hosas-hotspot` removes it.
-
-Settings are stored under `~/.config/HOSAS_Translator/` instead of `%APPDATA%`. The `.exe` build and the HidHide section below are Windows-only.
 
 ### Optional: hiding the physical sticks from games (HidHide)
 
@@ -110,29 +32,20 @@ One-time setup:
 1. Install HidHide and reboot when asked.
 2. Open **HidHide Configuration Client** (it asks for administrator rights).
 3. **Applications** tab: click **+** and add the `HOSAS Translator.exe` you actually run (or your `python.exe` if you run from source). Only programs listed here can still see hidden devices.
-4. **Devices** tab: tick both `Thrustmaster T.16000M` entries, then tick the **Enable device hiding** checkbox at the bottom left. That checkbox is what the client's "press Enable" hint refers to — there is no separate button, and nothing is hidden until it's ticked. Leave `Controller (XBOX 360 For Windows)` unticked: that is the translator's virtual controller, which the game has to see.
-5. Restart every program that already had the sticks open, or reboot. Hiding only applies when a program opens a device, so anything started earlier keeps its access — this includes Steam, which opens the sticks in the background as soon as it starts.
-
-After that, start things in this order: the translator, **Start** in the translator, then the game.
-
-Checking that it worked:
-
-- The translator still shows **Connected** with both sticks. If it reports 0 sticks, the path on the **Applications** tab doesn't match the `.exe` you're running.
-- The game's controller settings list only the Xbox 360 controller, not the two T.16000Ms. If the sticks still show up, **Enable device hiding** is unticked or the game/Steam wasn't restarted.
+4. **Devices** tab: tick both T.16000M entries, then tick **Enable device hiding**.
+5. Restart any program that already had the sticks open (the game, Steam), or reboot.
 
 Things to know:
 
 - The application list is by file path — if you move or rename the `.exe`, add the new path again or the translator itself will stop finding the sticks.
-- Leave the inverse option on the **Applications** tab off; with it on, the list means the opposite (only the listed programs are blocked).
 - Hiding is global: while it's enabled, no other game or tool sees the sticks directly. Untick **Enable device hiding** when you want to use them without the translator.
-- The translator can't switch hiding on and off for you: HidHide only accepts changes from an administrator, so it's a setting you leave on rather than something tied to the **Start**/**Stop** button.
 
 ### Using the app
 
 - **Control** — shows connection status, lets you pick the active mapping, and has the Start/Stop button that turns the virtual Xbox 360 controller on and off.
 - **Debug** — a live Xbox 360 controller schematic (ABXY in their real colors, D-pad, bumpers/triggers, sticks, Back/Guide/Start) that lights up as you press things, so you can see exactly what's reaching the virtual controller. Below it, the raw per-stick axis/button/hat values plus each pressed button's mapped target (e.g. `1→B`), useful for confirming your hardware's indices.
-- **Calibration** — both T.16000M units report identical hardware IDs with no serial, so left/right is determined once by wiggling the left stick; the result is cached (on Linux per USB port) so this normally only runs the first time. If you swap which stick is in which USB port, use **Recalibrate** here.
-- **Configs** — browse the built-in **Default** mapping (read-only) and any custom mappings you've made. **New from Default** clones it into an editable copy; the editor lets you point-and-click a target Xbox button for every stick button and hat direction, plus axis indices, deadzone, poll rate, Y-inversion, and the throttle sensitivity settings — no JSON editing needed. **Set as Active** switches which mapping the Control tab's virtual controller uses.
+- **Calibration** — both T.16000M units report identical hardware IDs with no serial, so left/right is determined once by wiggling the left stick; the result is cached so this normally only runs the first time. If you swap which stick is in which USB port, use **Recalibrate** here.
+- **Configs** — browse the built-in **Default** mapping (read-only) and any custom mappings you've made. **New from Default** clones it into an editable copy; the editor lets you point-and-click a target Xbox button for every stick button and hat direction, plus axis indices, deadzone, poll rate, and Y-inversion — no JSON editing needed. **Set as Active** switches which mapping the Control tab's virtual controller uses.
 
 All of this is stored per-user under `%APPDATA%\HOSAS_Translator\` (the Default mapping, your custom mappings, the USB-port calibration cache, and which mapping was last active), so it's independent of where the app is installed or run from.
 
@@ -157,9 +70,6 @@ python main.py                 # run the translator (Ctrl+C to stop)
 | [controller_view.py](controller_view.py) | The Canvas-drawn Xbox 360 controller schematic shown on the Debug tab. |
 | [gui.py](gui.py) | The Windows app — this is what `build.ps1` packages into the .exe. |
 | [main.py](main.py) | The headless CLI (`--test` / `--debug` / `--recalibrate` / `--config`), built on the same `config_store.py` / `stick_engine.py`. |
-| [switch_bridge.py](switch_bridge.py) | Linux: sends the sticks to a Nintendo Switch over Bluetooth (NXBT). |
-| [web_portal.py](web_portal.py), [portal.html](portal.html) | Linux: the Switch bridge with a phone-friendly web page for connecting, pairing, left/right USB ports, and editing mappings. |
-| [hosas-portal.service](hosas-portal.service), [setup_hotspot.sh](setup_hotspot.sh) | Linux: start the portal at boot, and the fallback Wi-Fi hotspot for using it with no network around. |
 | [build.ps1](build.ps1) | Packages `gui.py` into `dist\HOSAS Translator.exe` via PyInstaller. |
 
 ## Building the .exe
@@ -175,46 +85,35 @@ This produces a single-file `dist\HOSAS Translator.exe` with `--noconsole` (no t
 
 If a rebuild fails with a `PermissionError` on `dist\HOSAS Translator.exe`, it's because a previous build of the exe is still running (Windows locks the file while it's open) — close it and rebuild.
 
-## One stick or two
-
-The mode follows how many T.16000Ms are plugged in — there is nothing to set:
-
-- **Two sticks (duo mode)** — one per hand: left stick → left stick, right stick → right stick, as in the table below.
-- **One stick (single-stick mode)** — that stick is the whole controller. The stick itself is the controller's left stick (with the left stick's up/down inversion setting), the trigger is RT, and the buttons and hat have their own mapping (the **Single stick** column below), which starts out as the right stick's with the three stick-top buttons changed so one hand reaches both triggers. There is no right stick or LB in this mode unless you map them in a custom mapping.
-
-The phone portal switches by itself when a stick is unplugged or plugged back in. The GUI and the command-line tools decide when they connect, so use **Connect / Refresh** (or restart them) after changing the number of sticks. Which USB port counts as left is only asked for, and only saved, with two sticks.
-
 ## Button mapping
 
-The Default mapping (`DEFAULT_CONFIG` in [config_store.py](config_store.py)) maps buttons as follows; `BUTTON_NAME_MAP` in the same file lists every supported target name (including LT/RT, so any button can pull a trigger), and the Configs tab in the app lets you build your own layout without editing code.
+The Default mapping (`DEFAULT_CONFIG` in [config_store.py](config_store.py)) maps buttons as follows; `BUTTON_NAME_MAP` in the same file lists every supported target name, and the Configs tab in the app lets you build your own layout without editing code.
 
 ![Button mapping diagram](button_mapping.svg)
 
-| T.16000M input | Left stick → | Right stick → | Single stick → |
-| --- | --- | --- | --- |
-| Trigger (button 0) | LT | RT | RT |
-| Button 1 | B | A | B |
-| Button 2 | Y | RB | LT |
-| Button 3 | LB | X | A |
-| Hat up | D-Pad up | Y | Y |
-| Hat down | D-Pad down | A | A |
-| Hat left | D-Pad left | X | X |
-| Hat right | D-Pad right | B | B |
-| Hat diagonal (↖) | Left stick click (L3) | Right stick click (R3) | Right stick click (R3) |
-| Button 5 | Y | Y | Y |
-| Button 6 | Guide (Xbox button) | Guide (Xbox button) | Guide (Xbox button) |
-| Button 7 | X | X | X |
-| Button 8 | A | A | A |
-| Button 9 | B | B | B |
-| Button 10 | Back | Back | Back |
-| Button 11 | D-Pad up | D-Pad up | D-Pad up |
-| Button 12 | Start | Start | Start |
-| Button 13 | D-Pad right | D-Pad right | D-Pad right |
-| Button 14 | D-Pad down | D-Pad down | D-Pad down |
-| Button 15 | D-Pad left | D-Pad left | D-Pad left |
-| Button 4, 16–19 | unmapped | unmapped | unmapped |
-
-Each stick's throttle slider scales that stick's output: 100% at one end of its travel, falling evenly to 20% at the other, so you can trade reach for precision per hand while playing. In a custom mapping you can turn this off, reverse which end is full sensitivity, or change the lowest value; the Debug panel and the phone portal show each stick's current percentage.
+| T.16000M input | Left stick → | Right stick → |
+| --- | --- | --- |
+| Trigger (button 0) | LT | RT |
+| Button 1 | B | A |
+| Button 2 | Y | RB |
+| Button 3 | LB | X |
+| Hat up | D-Pad up | Y |
+| Hat down | D-Pad down | A |
+| Hat left | D-Pad left | X |
+| Hat right | D-Pad right | B |
+| Hat diagonal (↖) | Left stick click (L3) | Right stick click (R3) |
+| Button 5 | Y | Y |
+| Button 6 | Guide (Xbox button) | Guide (Xbox button) |
+| Button 7 | X | X |
+| Button 8 | A | A |
+| Button 9 | B | B |
+| Button 10 | Back | Back |
+| Button 11 | D-Pad up | D-Pad up |
+| Button 12 | Start | Start |
+| Button 13 | D-Pad right | D-Pad right |
+| Button 14 | D-Pad down | D-Pad down |
+| Button 15 | D-Pad left | D-Pad left |
+| Button 4, 16–19 | unmapped | unmapped |
 
 Button 4 (screenshot/share) has no Xbox 360 equivalent — `VX360Gamepad` emulates a 360 pad, which predates that button.
 

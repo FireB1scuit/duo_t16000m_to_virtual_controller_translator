@@ -1,7 +1,5 @@
 """
-GUI for the T.16000M -> virtual Xbox 360 controller translator (Windows,
-and Linux via uinput - see README.md). Two sticks make one controller; with
-only one plugged in it runs single-stick mode (see config_store.MODE_SINGLE).
+Windows GUI for the T.16000M -> virtual Xbox 360 controller translator.
 
 Left half is a tabbed panel:
   - Control: connect the sticks, pick which config is active, start/stop
@@ -18,7 +16,6 @@ Built on config_store.py / stick_engine.py, which are also used by the
 plain CLI in main.py.
 """
 
-import sys
 import threading
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
@@ -27,15 +24,9 @@ import pygame
 
 import config_store
 from controller_view import ControllerSchematic
-from stick_engine import StickManager
+from stick_engine import StickManager, compute_virtual_state
 
 APP_TITLE = "HOSAS Translator"
-WINDOW_WIDTH = 1300
-
-if sys.platform == "win32":
-    VIRTUAL_PAD_HINT = "Is ViGEmBus installed?"
-else:
-    VIRTUAL_PAD_HINT = "Does your user have write access to /dev/uinput? See the Linux section of README.md."
 
 
 class ScrollableFrame(ttk.Frame):
@@ -58,15 +49,11 @@ class ScrollableFrame(ttk.Frame):
         def on_mousewheel(event):
             canvas.yview_scroll(-1 * (event.delta // 120), "units")
 
-        # X11 has no <MouseWheel>; the wheel arrives as buttons 4 (up) / 5 (down).
         def bind_wheel(_event):
             canvas.bind_all("<MouseWheel>", on_mousewheel)
-            canvas.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
-            canvas.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
 
         def unbind_wheel(_event):
-            for sequence in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
-                canvas.unbind_all(sequence)
+            canvas.unbind_all("<MouseWheel>")
 
         canvas.bind("<Enter>", bind_wheel)
         canvas.bind("<Leave>", unbind_wheel)
@@ -76,7 +63,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry(f"{WINDOW_WIDTH}x750")
+        self.geometry("1300x750")
         self.minsize(1150, 650)
 
         pygame.init()
@@ -90,11 +77,6 @@ class App(tk.Tk):
         self.controller_status = tk.StringVar(value="Virtual controller: stopped")
 
         self._build_ui()
-        # Font metrics differ per platform (Linux fonts run taller than
-        # Segoe UI), so grow the window to whatever the debug panel needs
-        # rather than clipping its bottom rows.
-        self.update_idletasks()
-        self.geometry(f"{WINDOW_WIDTH}x{max(750, self.winfo_reqheight())}")
         self._load_active_config(persist=False)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(300, lambda: self._connect(recalibrate=False))
@@ -121,15 +103,8 @@ class App(tk.Tk):
         self._build_configs_tab()
 
         # Give the debug side enough width for the schematic up front instead
-        # of the 50/50 split the PanedWindow would otherwise start with. The
-        # sash can only be placed once the pane has its real width, which on
-        # X11 is later than the first idle callback - so wait for the resize.
-        def place_sash(event):
-            if event.width >= WINDOW_WIDTH - 50:
-                panes.unbind("<Configure>")
-                panes.sashpos(0, 480)
-
-        panes.bind("<Configure>", place_sash)
+        # of the 50/50 split the PanedWindow would otherwise start with.
+        self.after_idle(lambda: panes.sashpos(0, 480))
 
     # ---------------------------------------------------------- control --
     def _build_control_tab(self):
@@ -137,12 +112,10 @@ class App(tk.Tk):
 
         conn = ttk.LabelFrame(tab, text="Sticks", padding=12)
         conn.pack(fill="x", pady=(0, 12))
-        # Button first so it keeps its full width; the status text wraps in
-        # whatever is left instead of pushing the button out of the frame.
+        ttk.Label(conn, textvariable=self.connection_status).pack(side="left")
         ttk.Button(conn, text="Connect / Refresh", command=lambda: self._connect(recalibrate=False)).pack(
-            side="right", padx=(8, 0)
+            side="right"
         )
-        ttk.Label(conn, textvariable=self.connection_status, wraplength=270, justify="left").pack(side="left")
 
         cfg = ttk.LabelFrame(tab, text="Active mapping", padding=12)
         cfg.pack(fill="x", pady=(0, 12))
@@ -167,7 +140,7 @@ class App(tk.Tk):
                 "wiggling the left stick once. That result is cached, so this normally only "
                 "runs the first time or after you change USB ports."
             ),
-            wraplength=400,
+            wraplength=460,
             justify="left",
         ).pack(anchor="w", pady=(0, 12))
 
@@ -191,7 +164,7 @@ class App(tk.Tk):
             self.manager.start_gamepad()
         except Exception as exc:
             messagebox.showerror(
-                APP_TITLE, f"Couldn't create the virtual controller:\n{exc}\n\n{VIRTUAL_PAD_HINT}"
+                APP_TITLE, f"Couldn't create the virtual controller:\n{exc}\n\nIs ViGEmBus installed?"
             )
             return
         self.controller_status.set("Virtual controller: active")
@@ -242,36 +215,27 @@ class App(tk.Tk):
         snap = self.manager.get_snapshot()
         cfg = self.manager.config
         left, right = snap.get("left"), snap.get("right")
-        vs = self.manager.virtual_state()
-        if vs is None:
+        if left is None or right is None:
             for side in ("left", "right"):
                 self.debug_widgets[side]["name"].config(text="Not connected")
             self.after(100, self._refresh_debug)
             return
 
+        vs = compute_virtual_state(left, right, cfg)
         self.schematic.set_active(vs["active_buttons"], vs["lt"], vs["rt"], vs["lx"], vs["ly"], vs["rx"], vs["ry"])
 
-        if right is None:
-            # Single-stick mode: the one stick drives the left stick, with
-            # RT on its trigger and its own button and hat mapping.
-            rows = (("left", left, vs["lx"], vs["ly"], vs["rt"], cfg["single_buttons"], cfg["single_hat"], "RT"),)
-            self.debug_widgets["right"]["name"].config(text="Not connected (single-stick mode)")
-        else:
-            rows = (
-                ("left", left, vs["lx"], vs["ly"], vs["lt"], cfg["left_buttons"], cfg["left_hat"], "LT"),
-                ("right", right, vs["rx"], vs["ry"], vs["rt"], cfg["right_buttons"], cfg["right_hat"], "RT"),
-            )
-        for side, state, x, y, trig, button_map, hat_map, trig_target in rows:
+        for side, state, x, y, trig, button_map, hat_map in (
+            ("left", left, vs["lx"], vs["ly"], vs["lt"], cfg["left_buttons"], cfg["left_hat"]),
+            ("right", right, vs["rx"], vs["ry"], vs["rt"], cfg["right_buttons"], cfg["right_hat"]),
+        ):
             widgets = self.debug_widgets[side]
             widgets["name"].config(text=state["name"])
-            sensitivity = vs[f"{side}_sensitivity"]
-            widgets["processed"].config(
-                text=f"x={x:+.2f} y={y:+.2f}  trigger={bool(trig)}  sensitivity={sensitivity:.0%}"
-            )
+            widgets["processed"].config(text=f"x={x:+.2f} y={y:+.2f}  trigger={bool(trig)}")
 
             axes_text = "  ".join(f"{i}:{v:+.2f}" for i, v in enumerate(state["axes"]))
             widgets["axes"].config(text=f"axes: {axes_text}")
 
+            trig_target = "LT" if side == "left" else "RT"
             parts = []
             for i, pressed in enumerate(state["buttons"]):
                 if not pressed:
@@ -438,11 +402,9 @@ class App(tk.Tk):
             self.after(0, self._reset_controller_ui)
 
             sticks, all_joysticks = self.manager.find_sticks()
-            if len(sticks) not in (1, 2):
+            if len(sticks) != 2:
                 names = ", ".join(j.get_name() for j in all_joysticks) or "none"
-                self.after(
-                    0, lambda: self._connect_failed(f"Expected 1 or 2 T.16000M sticks, found {len(sticks)} ({names})")
-                )
+                self.after(0, lambda: self._connect_failed(f"Expected 2 T.16000M sticks, found {len(sticks)} ({names})"))
                 return
 
             def status_cb(msg):
@@ -466,11 +428,8 @@ class App(tk.Tk):
     def _connect_succeeded(self, used_cache):
         self._connecting = False
         left, right = self.manager.left, self.manager.right
-        if right is None:
-            self.connection_status.set(f"Connected -> single-stick mode: {left.get_name()}")
-        else:
-            suffix = " (cached assignment)" if used_cache else " (just calibrated)"
-            self.connection_status.set(f"Connected -> Left: {left.get_name()}  |  Right: {right.get_name()}{suffix}")
+        suffix = " (cached assignment)" if used_cache else " (just calibrated)"
+        self.connection_status.set(f"Connected -> Left: {left.get_name()}  |  Right: {right.get_name()}{suffix}")
         self.toggle_button.config(state="normal")
         self.recalibrate_button.config(state="normal")
         self.abort_button.config(state="disabled")
@@ -552,25 +511,6 @@ class MappingEditor(ttk.Frame):
         self._vars["invert_y_left"] = left_invert
         self._vars["invert_y_right"] = right_invert
 
-        throttle_on = tk.BooleanVar()
-        throttle_invert = tk.BooleanVar()
-        ttk.Checkbutton(frame, text="Throttle sets sensitivity", variable=throttle_on).grid(
-            row=6, column=0, sticky="w", pady=2
-        )
-        ttk.Checkbutton(frame, text="Reverse throttle", variable=throttle_invert).grid(
-            row=6, column=1, sticky="w", pady=2
-        )
-        self._vars["throttle_sensitivity"] = throttle_on
-        self._vars["throttle_invert"] = throttle_invert
-        spin(7, "throttle_axis", "Throttle axis index", 0, 7)
-
-        min_sensitivity_var = tk.DoubleVar()
-        ttk.Label(frame, text="Lowest throttle sensitivity").grid(row=8, column=0, sticky="w", padx=(0, 8), pady=2)
-        ttk.Scale(frame, from_=0.05, to=1.0, orient="horizontal", variable=min_sensitivity_var, length=160).grid(
-            row=8, column=1, sticky="w"
-        )
-        self._vars["throttle_min_sensitivity"] = min_sensitivity_var
-
     def _build_mapping_section(self, key, title, indices):
         frame = ttk.LabelFrame(self.body, text=title, padding=10)
         frame.pack(fill="x", padx=4, pady=6)
@@ -612,14 +552,9 @@ class MappingEditor(ttk.Frame):
     def load(self, name, config, read_only):
         self.name = name
         self.read_only = read_only
-        # Not editable here (the phone portal edits it), but has to survive a save.
-        self._single_mapping = {key: dict(config[key]) for key in ("single_buttons", "single_hat")}
         self.title_label.config(text=f"{name}{' (read-only)' if read_only else ''}")
 
-        for key in (
-            "stick_x_axis", "stick_y_axis", "trigger_button", "poll_hz", "stick_deadzone",
-            "throttle_sensitivity", "throttle_invert", "throttle_axis", "throttle_min_sensitivity",
-        ):
+        for key in ("stick_x_axis", "stick_y_axis", "trigger_button", "poll_hz", "stick_deadzone"):
             self._vars[key].set(config[key])
         self._vars["invert_y_left"].set(config["invert_y_left"])
         self._vars["invert_y_right"].set(config["invert_y_right"])
@@ -663,11 +598,6 @@ class MappingEditor(ttk.Frame):
             "stick_deadzone": round(self._vars["stick_deadzone"].get(), 3),
             "invert_y_left": self._vars["invert_y_left"].get(),
             "invert_y_right": self._vars["invert_y_right"].get(),
-            "throttle_sensitivity": self._vars["throttle_sensitivity"].get(),
-            "throttle_invert": self._vars["throttle_invert"].get(),
-            "throttle_axis": self._vars["throttle_axis"].get(),
-            "throttle_min_sensitivity": round(self._vars["throttle_min_sensitivity"].get(), 2),
-            **self._single_mapping,
         }
         for key in ("left_buttons", "right_buttons"):
             config[key] = {
