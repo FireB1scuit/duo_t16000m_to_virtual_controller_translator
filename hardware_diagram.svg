@@ -1,0 +1,114 @@
+<svg viewBox="0 0 1160 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+<title id="title">Hardware and signal flow diagram</title>
+<desc id="desc">Two Thrustmaster T.16000M joysticks plug into a Windows PC over USB. HOSAS Translator reads both, and through the ViGEmBus driver presents a single virtual Xbox 360 controller to the game. Optionally, HidHide hides the physical sticks from games.</desc>
+<style>
+  svg {
+    --bg: #ffffff;
+    --box-fill: #ffffff;
+    --pc-fill: #f6f8fa;
+    --line: #d0d7de;
+    --text: #1f2328;
+    --sub: #57606a;
+    --accent: #0969da;
+  }
+  @media (prefers-color-scheme: dark) {
+    svg {
+      --bg: #0d1117;
+      --box-fill: #161b22;
+      --pc-fill: #010409;
+      --line: #30363d;
+      --text: #e6edf3;
+      --sub: #8b949e;
+      --accent: #58a6ff;
+    }
+  }
+  text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .bg { fill: var(--bg); }
+  .pc { fill: var(--pc-fill); stroke: var(--line); stroke-width: 1.5; }
+  .box { fill: var(--box-fill); stroke: var(--line); stroke-width: 1.5; }
+  .box-main { fill: var(--box-fill); stroke: var(--accent); stroke-width: 2; }
+  .box-opt { fill: var(--box-fill); stroke: var(--sub); stroke-width: 1.5; stroke-dasharray: 6 4; }
+  .title { fill: var(--text); font-size: 22px; font-weight: 700; }
+  .section { fill: var(--sub); font-size: 13px; font-weight: 700; letter-spacing: 0.5px; }
+  .boxtop { fill: var(--text); font-size: 15px; font-weight: 700; }
+  .boxmain { fill: var(--accent); font-size: 16px; font-weight: 700; }
+  .boxsub { fill: var(--sub); font-size: 12px; }
+  .note { fill: var(--sub); font-size: 12px; }
+  .usb { fill: var(--accent); font-size: 12px; font-weight: 700; }
+  .wire { stroke: var(--accent); stroke-width: 2; fill: none; }
+  .wire-opt { stroke: var(--sub); stroke-width: 1.5; stroke-dasharray: 6 4; fill: none; }
+  .port { fill: var(--accent); }
+  .head { fill: var(--accent); }
+  .head-opt { fill: var(--sub); }
+</style>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+    <path class="head" d="M0,0 L10,5 L0,10 Z"/>
+  </marker>
+  <marker id="arrow-opt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+    <path class="head-opt" d="M0,0 L10,5 L0,10 Z"/>
+  </marker>
+</defs>
+
+<rect class="bg" x="0" y="0" width="1160" height="430"/>
+<text class="title" x="580" y="35" text-anchor="middle">Hardware Setup and Signal Flow</text>
+
+<!-- Windows PC container -->
+<rect class="pc" x="330" y="60" width="800" height="345" rx="10"/>
+<text class="section" x="350" y="84">WINDOWS PC</text>
+
+<!-- Optional path: physical sticks seen directly by the game -->
+<path class="wire-opt" d="M140,260 L140,345 L440,345"/>
+<text class="note" x="152" y="337">also visible to games</text>
+<path class="wire-opt" d="M700,345 L900,345" marker-end="url(#arrow-opt)"/>
+<text class="note" x="800" y="337" text-anchor="middle">blocked when hiding is on</text>
+
+<!-- USB cables -->
+<path class="wire" d="M250,135 L360,135" marker-end="url(#arrow)"/>
+<path class="wire" d="M250,225 L360,225" marker-end="url(#arrow)"/>
+<circle class="port" cx="330" cy="135" r="5"/>
+<circle class="port" cx="330" cy="225" r="5"/>
+<text class="usb" x="290" y="126" text-anchor="middle">USB</text>
+<text class="usb" x="290" y="216" text-anchor="middle">USB</text>
+
+<!-- Joysticks -->
+<rect class="box" x="30" y="100" width="220" height="70" rx="8"/>
+<text class="boxtop" x="140" y="131" text-anchor="middle">Left T.16000M</text>
+<text class="boxsub" x="140" y="151" text-anchor="middle">joystick, left hand</text>
+
+<rect class="box" x="30" y="190" width="220" height="70" rx="8"/>
+<text class="boxtop" x="140" y="221" text-anchor="middle">Right T.16000M</text>
+<text class="boxsub" x="140" y="241" text-anchor="middle">joystick, right hand</text>
+
+<!-- HOSAS Translator -->
+<rect class="box-main" x="360" y="100" width="210" height="160" rx="8"/>
+<text class="boxmain" x="465" y="130" text-anchor="middle">HOSAS Translator</text>
+<text class="boxsub" x="465" y="158" text-anchor="middle">reads both sticks (pygame)</text>
+<text class="boxsub" x="465" y="180" text-anchor="middle">left / right calibration</text>
+<text class="boxsub" x="465" y="202" text-anchor="middle">deadzone + button mapping</text>
+<text class="boxsub" x="465" y="224" text-anchor="middle">sends output via vgamepad</text>
+
+<!-- ViGEmBus -->
+<path class="wire" d="M570,180 L640,180" marker-end="url(#arrow)"/>
+<rect class="box" x="640" y="140" width="190" height="80" rx="8"/>
+<text class="boxtop" x="735" y="175" text-anchor="middle">ViGEmBus driver</text>
+<text class="boxsub" x="735" y="196" text-anchor="middle">creates the virtual pad</text>
+
+<!-- Virtual controller -->
+<path class="wire" d="M830,180 L900,180" marker-end="url(#arrow)"/>
+<rect class="box" x="900" y="140" width="200" height="80" rx="8"/>
+<text class="boxtop" x="1000" y="175" text-anchor="middle">Virtual Xbox 360 pad</text>
+<text class="boxsub" x="1000" y="196" text-anchor="middle">one controller, both sticks</text>
+
+<!-- Game -->
+<path class="wire" d="M1000,220 L1000,310" marker-end="url(#arrow)"/>
+<text class="usb" x="1012" y="270">XInput</text>
+<rect class="box" x="900" y="310" width="200" height="70" rx="8"/>
+<text class="boxtop" x="1000" y="341" text-anchor="middle">Game</text>
+<text class="boxsub" x="1000" y="361" text-anchor="middle">sees an Xbox 360 controller</text>
+
+<!-- HidHide (optional) -->
+<rect class="box-opt" x="440" y="310" width="260" height="70" rx="8"/>
+<text class="boxtop" x="570" y="341" text-anchor="middle">HidHide (optional)</text>
+<text class="boxsub" x="570" y="361" text-anchor="middle">hides the physical sticks from games</text>
+</svg>

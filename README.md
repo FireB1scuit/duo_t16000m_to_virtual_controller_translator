@@ -1,5 +1,11 @@
 # duo_t16000m_to_virtual_controller_translator
 
+Turns two Thrustmaster T.16000M joysticks into a single virtual Xbox 360 controller on Windows.
+
+![Hardware setup and signal flow diagram](hardware_diagram.svg)
+
+Both sticks plug straight into the PC over USB — there is no extra wiring or hardware. The translator reads them, and the ViGEmBus driver presents the result to games as one Xbox 360 controller. HidHide is only needed if a game also reacts to the physical sticks.
+
 - [x] read out joystick values
 - [x] virtual controller
 - [x] left joystick xy to wasd
